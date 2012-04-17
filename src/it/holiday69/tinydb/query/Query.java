@@ -4,6 +4,7 @@
  */
 package it.holiday69.tinydb.query;
 
+import it.holiday69.tinydb.exception.TinyDBException;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -15,6 +16,8 @@ public class Query  {
   
   private final List<FieldFilter> _fieldFilterList = new LinkedList<FieldFilter>();
   private final List<OrderFilter> _orderFilterList = new LinkedList<OrderFilter>();
+  private int _limit = Integer.MAX_VALUE;
+  private int _offset = 0;
   
   public Query() { }
   
@@ -68,12 +71,33 @@ public class Query  {
     _orderFilterList.add(new OrderFilter(fieldName, OrderType.ASCENDING));
     
     if(!_orderFilterList.isEmpty())
-      throw new RuntimeException("Multiple sortBy fields are not allowed yet, please ordery by one field only");
+      throw new TinyDBException("Multiple sortBy fields are not allowed yet, please ordery by one field only");
+    
+    return this;
+  }
+  
+  
+  public Query limit(int limit) { 
+    
+    if(limit < 1)
+      throw new IllegalArgumentException("The limit value cannot be negative or null");
+    
+    _limit = limit;
+    return this;
+  }
+  
+  public Query offset(int offset) {
+    
+    if(offset < 0)
+      throw new IllegalArgumentException("The offset value cannot be negative");
+    
+    _offset = offset;
     
     return this;
   }
   
   public List<FieldFilter> getFieldFilterList() { return _fieldFilterList; }
   public List<OrderFilter> getOrderFilterList() { return _orderFilterList; }
-  
+  public int getLimit() { return _limit; }
+  public int getOffset() { return _offset; }
 }

@@ -4,7 +4,7 @@
  */
 package it.holiday69.tinydb.jdbm.handler;
 
-import it.holiday69.tinydb.jdbm.DBHelper;
+import it.holiday69.tinydb.jdbm.TinyDBHelper;
 import it.holiday69.tinydb.jdbm.vo.ClassInfo;
 import it.holiday69.tinydb.jdbm.vo.Key;
 import java.util.NavigableMap;
@@ -22,12 +22,12 @@ public class PutHandler {
   
   public <T> void putUncommitted(T newObj) {
     
-    ClassInfo classInfo = DBHelper.getClassInfo(newObj.getClass());
+    ClassInfo classInfo = TinyDBHelper.getClassInfo(newObj.getClass());
     
-    Comparable entityKeyVal = DBHelper.getIDFieldValue(newObj);
+    Comparable entityKeyVal = TinyDBHelper.getIDFieldValue(newObj);
     
     // gets/creates the data tree
-    NavigableMap<Key, Object> dataTree = DBHelper.getCreateDataTreeMap(newObj.getClass());
+    NavigableMap<Key, Object> dataTree = TinyDBHelper.getCreateDataTreeMap(newObj.getClass());
     
     // checks if the id field is a long with auto increment (automatic if value is zero or null)
     if(entityKeyVal != null && entityKeyVal instanceof Long && (Long) entityKeyVal == 0) {
@@ -38,7 +38,7 @@ public class PutHandler {
       else
         entityKeyVal = ((Long)lastKey.keyValue)+1l;
       
-      DBHelper.setIDFieldValue(newObj, entityKeyVal);
+      TinyDBHelper.setIDFieldValue(newObj, entityKeyVal);
     }
     
     // updates the data tree
@@ -49,9 +49,9 @@ public class PutHandler {
     // updates all the index trees
     for(String indexedFieldName : classInfo.indexedFieldNameList) {
       
-      SortedMap<Key,TreeSet<Key>> indexTreeMap = DBHelper.getCreateIndexTreeMap(newObj.getClass(), indexedFieldName);
+      SortedMap<Key,TreeSet<Key>> indexTreeMap = TinyDBHelper.getCreateIndexTreeMap(newObj.getClass(), indexedFieldName);
       
-      Key indexKey = Key.fromKeyValue(DBHelper.getFieldValue(newObj, indexedFieldName));
+      Key indexKey = Key.fromKeyValue(TinyDBHelper.getFieldValue(newObj, indexedFieldName));
       
       if(!indexTreeMap.containsKey(indexKey))
         indexTreeMap.put(indexKey, new TreeSet<Key>());

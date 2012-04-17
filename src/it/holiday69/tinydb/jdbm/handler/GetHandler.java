@@ -4,13 +4,14 @@
  */
 package it.holiday69.tinydb.jdbm.handler;
 
-import it.holiday69.tinydb.query.Query;
-import it.holiday69.tinydb.query.OrderFilter;
-import it.holiday69.tinydb.query.FieldFilter;
-import it.holiday69.tinydb.query.OrderType;
-import it.holiday69.tinydb.jdbm.DBHelper;
+import it.holiday69.tinydb.exception.TinyDBException;
+import it.holiday69.tinydb.jdbm.TinyDBHelper;
 import it.holiday69.tinydb.jdbm.vo.ClassInfo;
 import it.holiday69.tinydb.jdbm.vo.Key;
+import it.holiday69.tinydb.query.FieldFilter;
+import it.holiday69.tinydb.query.OrderFilter;
+import it.holiday69.tinydb.query.OrderType;
+import it.holiday69.tinydb.query.Query;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -26,12 +27,12 @@ public class GetHandler {
     
     Key key = Key.fromKeyValue((Comparable) keyValue);
     
-    return (T) DBHelper.getCreateDataTreeMap(classOfT).get(key);
+    return (T) TinyDBHelper.getCreateDataTreeMap(classOfT).get(key);
   }
   
   public <T> List<T> getAll(Class<T> classOfT) {
     
-    Collection<T> values = (Collection<T>) DBHelper.getCreateDataTreeMap(classOfT).values();
+    Collection<T> values = (Collection<T>) TinyDBHelper.getCreateDataTreeMap(classOfT).values();
     if(values != null)
       return new LinkedList<T>(values);
     else
@@ -40,11 +41,11 @@ public class GetHandler {
   
   public <T> T getFromQuery(Query query, Class<T> classOfT) {
     
-    Set<Key> finalKeySet = getKeysFromQuery(query, classOfT);
+    List<Key> finalKeyList = getKeysFromQuery(query, classOfT);
     
-    NavigableMap<Key, Object> dataMap = DBHelper.getCreateDataTreeMap(classOfT);
+    NavigableMap<Key, Object> dataMap = TinyDBHelper.getCreateDataTreeMap(classOfT);
     
-    for(Key dataKey : finalKeySet) {
+    for(Key dataKey : finalKeyList) {
      T value = (T) dataMap.get(dataKey);
       if(value != null)
         return value;
@@ -57,13 +58,13 @@ public class GetHandler {
   
   public <T> List<T> getListFromQuery(Query query, Class<T> classOfT) {
     
-    Set<Key> finalKeySet = getKeysFromQuery(query, classOfT);
+    List<Key> finalKeyList = getKeysFromQuery(query, classOfT);
     
     List<T> finalRetList = new LinkedList<T>();
     
-    NavigableMap<Key, Object> dataMap = DBHelper.getCreateDataTreeMap(classOfT);
+    NavigableMap<Key, Object> dataMap = TinyDBHelper.getCreateDataTreeMap(classOfT);
     
-    for(Key dataKey : finalKeySet) {
+    for(Key dataKey : finalKeyList) {
      T value = (T) dataMap.get(dataKey);
       if(value != null)
         finalRetList.add(value);
@@ -74,9 +75,9 @@ public class GetHandler {
     return finalRetList;
   }
   
-  private <T> Set<Key> getKeysFromQuery(Query query, Class<T> classOfT) {
+  private <T> List<Key> getKeysFromQuery(Query query, Class<T> classOfT) {
     
-    Set<Key> finalKeyList = new TreeSet<Key>();
+    List<Key> finalKeyList = new LinkedList<Key>();
     
     // we apply field filters
     for(FieldFilter fieldFilter : query.getFieldFilterList()) {
@@ -88,43 +89,38 @@ public class GetHandler {
     }
         
     if(query.getOrderFilterList().size() > 1)
-      throw new RuntimeException("Multiple order filters are not supported at the moment, please use just one");
+      throw new TinyDBException("Multiple order filters are not supported at the moment, please use just one");
     
     if(!query.getOrderFilterList().isEmpty())
       finalKeyList = applyOrder(query.getOrderFilterList().get(0), finalKeyList, classOfT);
+    
+    // we apply the offset if any
+    if(query.getOffset() < finalKeyList.size())
+      finalKeyList = finalKeyList.subList(query.getOffset(), finalKeyList.size());
+    
+    // we apply the limit if any
+    if(query.getLimit() <= finalKeyList.size())
+      finalKeyList = finalKeyList.subList(0, query.getLimit());
     
     return finalKeyList;
   }
   
   private <T> Set<Key> applyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
     
-    log.info("Applying filter: name: '" + fieldFilter.getFieldName() + "' => " + fieldFilter.getFieldValue());
-    
-    ClassInfo classInfo = DBHelper.getClassInfo(classOfT);
+    ClassInfo classInfo = TinyDBHelper.getClassInfo(classOfT);
     
     Set<Key> extractKeyList = new TreeSet<Key>();
     
     // we make sure we don't query for fields that are not indexed
     if(!classInfo.indexedFieldNameList.contains(fieldFilter.getFieldName()))
-      throw new RuntimeException("The field: '" + fieldFilter.getFieldName() + "' is not indexed and cannot be used in a query");
+      throw new TinyDBException("The field: '" + fieldFilter.getFieldName() + "' is not indexed and cannot be used in a query");
     
     Key fieldValueKey = Key.fromKeyValue((Comparable) fieldFilter.getFieldValue());
     
-    SortedMap<Key,TreeSet<Key>> indexTreeMap = DBHelper.getCreateIndexTreeMap(classOfT, fieldFilter.getFieldName());
-    
-    log.info("The indexTreeMap has " + indexTreeMap.keySet().size() + " keys");
-    /*
-    for(Key key : indexTreeMap.keySet()) {
-      
-      log.info("Key: " + key);
-      
-      for(Key dataKey : indexTreeMap.get(key))
-        log.info("******** " + dataKey);
-    }*/
+    SortedMap<Key,TreeSet<Key>> indexTreeMap = TinyDBHelper.getCreateIndexTreeMap(classOfT, fieldFilter.getFieldName());
     
     SortedMap<Key,TreeSet<Key>> subsetIndexTreeMap = new TreeMap<Key, TreeSet<Key>>();
    
-    log.info("Filter type: " + fieldFilter.getFieldFilterType());
     boolean inclusive = false;
     switch(fieldFilter.getFieldFilterType()) {
       case EQUAL: 
@@ -147,8 +143,6 @@ public class GetHandler {
         break;
     }
     
-    log.info("The subsetIndexTreeMap has " + subsetIndexTreeMap.keySet().size() + " keys");
-    
     // flattens the structure
     for(Key key : subsetIndexTreeMap.keySet())
       extractKeyList.addAll(subsetIndexTreeMap.get(key));
@@ -157,37 +151,40 @@ public class GetHandler {
     if(inclusive && indexTreeMap.containsKey(fieldValueKey))
       extractKeyList.addAll(indexTreeMap.get(fieldValueKey));
     
-    log.info("The extracted ket list has " + extractKeyList.size() + " elements");
-    
     return extractKeyList;
   }
   
   
-  private <T> Set<Key> applyOrder(OrderFilter orderFilter, Set<Key> filteredKeyList, Class<T> classOfT) {
+  private <T> List<Key> applyOrder(OrderFilter orderFilter, List<Key> filteredKeyList, Class<T> classOfT) {
     
-    ClassInfo classInfo = DBHelper.getClassInfo(classOfT);
+    ClassInfo classInfo = TinyDBHelper.getClassInfo(classOfT);
     
     List<Key> extractKeyList = new LinkedList<Key>();
     
     // we make sure we don't order for fields that are NOT indexed
     if(!classInfo.indexedFieldNameList.contains(orderFilter.getFieldName()))
-      throw new RuntimeException("The field: '" + orderFilter.getFieldName() + "' is not indexed and cannot be used in a query");
+      throw new TinyDBException("The field: '" + orderFilter.getFieldName() + "' is not indexed and cannot be used in a query");
     
-    SortedMap<Key,TreeSet<Key>> indexTreeMap = DBHelper.getCreateIndexTreeMap(classOfT, orderFilter.getFieldName());
+    SortedMap<Key,TreeSet<Key>> indexTreeMap = TinyDBHelper.getCreateIndexTreeMap(classOfT, orderFilter.getFieldName());
     
-    // we flatten the structure
+    // we flatten the index structure
     for(TreeSet<Key> tempTreeSet : indexTreeMap.values())
       extractKeyList.addAll(tempTreeSet);
     
     extractKeyList.retainAll(filteredKeyList);
     
-    //log.info("Extract key list: " + extractKeyList);
-        
     if(orderFilter.getOrderType() == OrderType.DESCENDING)
       Collections.reverse(extractKeyList);
     
-    return new LinkedHashSet<Key>(extractKeyList);
+    return extractKeyList;
     
   }
   
+  public <T> long getResultSetSize(Class<T> classOfT) {
+    return TinyDBHelper.getCreateDataTreeMap(classOfT).keySet().size();
+  }
+
+  public <T> long getResultSetSize(String fieldName, Object fieldValue, Class<T> classOfT) {
+    return getKeysFromQuery(new Query().filter(fieldName, fieldValue), classOfT).size();
+  }
 }

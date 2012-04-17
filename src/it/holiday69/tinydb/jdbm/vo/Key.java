@@ -29,7 +29,11 @@ public class Key implements Comparable<Key>, Serializable {
   
   @Override
   public boolean equals(Object obj) {
-    return keyValue.equals(obj);
+    
+    if(!(obj instanceof Key))
+      return false;
+    
+    return keyValue.equals(((Key) obj).keyValue);
   }
 
   @Override

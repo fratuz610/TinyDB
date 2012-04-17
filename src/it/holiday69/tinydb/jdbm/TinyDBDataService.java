@@ -8,9 +8,7 @@ import it.holiday69.tinydb.DataService;
 import it.holiday69.tinydb.jdbm.handler.DeleteHandler;
 import it.holiday69.tinydb.jdbm.handler.GetHandler;
 import it.holiday69.tinydb.jdbm.handler.PutHandler;
-import it.holiday69.tinydb.jdbm.vo.Key;
 import it.holiday69.tinydb.query.Query;
-import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Logger;
 import net.kotek.jdbm.DB;
@@ -19,9 +17,9 @@ import net.kotek.jdbm.DB;
  *
  * @author fratuz610
  */
-public class JDBMDataService extends DataService {
+public class TinyDBDataService extends DataService {
   
-  private static final Logger log = Logger.getLogger(JDBMDataService.class.getSimpleName());
+  private static final Logger log = Logger.getLogger(TinyDBDataService.class.getSimpleName());
 
   private DB _db;
   
@@ -29,8 +27,8 @@ public class JDBMDataService extends DataService {
   private final GetHandler _getHandler = new GetHandler();
   private final DeleteHandler _deleteHandler = new DeleteHandler();
   
-  public JDBMDataService() {
-    _db = DBHelper.getInstance();
+  public TinyDBDataService() {
+    _db = TinyDB.getInstance();
   }
   
   @Override
@@ -110,7 +108,7 @@ public class JDBMDataService extends DataService {
 
   @Override
   public <T> long getResultSetSize(Class<T> classOfT) {
-    return DBHelper.getCreateDataTreeMap(classOfT).size();
+    return TinyDBHelper.getCreateDataTreeMap(classOfT).size();
   }
 
   @Override

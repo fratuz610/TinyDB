@@ -4,6 +4,7 @@
  */
 package it.holiday69.tinydb.jdbm;
 
+import it.holiday69.tinydb.exception.TinyDBException;
 import it.holiday69.tinydb.jdbm.annotations.Id;
 import it.holiday69.tinydb.jdbm.annotations.Indexed;
 import it.holiday69.tinydb.jdbm.vo.ClassInfo;
@@ -11,27 +12,14 @@ import it.holiday69.tinydb.jdbm.vo.Key;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.logging.Logger;
-import net.kotek.jdbm.DB;
-import net.kotek.jdbm.DBMaker;
 
 /**
  *
  * @author fratuz610
  */
-public class DBHelper {
+public class TinyDBHelper {
   
-  private final static Logger log = Logger.getLogger(DBHelper.class.getSimpleName());
-  
-  private static final String _dbName = "db";
-  private static DB _db;
-  
-  public synchronized static DB getInstance() {
-    
-    if(_db == null)
-      _db = DBMaker.openFile(_dbName).make();
-    
-    return _db;
-  }
+  private final static Logger log = Logger.getLogger(TinyDBHelper.class.getSimpleName());
   
   private static final Map<Class, ClassInfo> _classInfoMap = new HashMap<Class, ClassInfo>();
   
@@ -43,7 +31,7 @@ public class DBHelper {
         return field.getName();
     }
     
-    throw new RuntimeException("The class: " + clazz.getName() + " has no @Id annotated field");
+    throw new TinyDBException("The class: " + clazz.getName() + " has no @Id annotated field");
   }
   
   private static List<String> getIndexedFieldList(Class<?> clazz) {
@@ -52,7 +40,7 @@ public class DBHelper {
     for(Field field : clazz.getDeclaredFields()) {
             
       if(field.isAnnotationPresent(Indexed.class)) {
-        log.info(clazz + " Indexed field: " + field.getName());
+        //log.info(clazz + " Indexed field: " + field.getName());
         retList.add(field.getName());
       }
     }
@@ -70,7 +58,7 @@ public class DBHelper {
     try {
       idField = clazz.getField(classInfo.idFieldName);
     } catch(NoSuchFieldException ex) {
-      throw new RuntimeException("The class: " + clazz.getName() + " has no @Id annotated field");
+      throw new TinyDBException("The class: " + clazz.getName() + " has no @Id annotated field");
     }
           
     if(idField.getType() == String.class) {
@@ -78,7 +66,7 @@ public class DBHelper {
     } else if(idField.getType() == long.class || idField.getType() == Long.class) {
       classInfo.idFieldType = ClassInfo.IDFieldType.LONG;
     } else {
-      throw new RuntimeException("Field " + classInfo.idFieldName  + " for class " + clazz.getName() + " is marked as @Id but its type is neither String or Long/long");
+      throw new TinyDBException("Field " + classInfo.idFieldName  + " for class " + clazz.getName() + " is marked as @Id but its type is neither String or Long/long");
     }
     
     // adds the indexed field list
@@ -114,7 +102,7 @@ public class DBHelper {
     try {
       obj.getClass().getDeclaredField(classInfo.idFieldName).set(obj, fieldValue);
     } catch (Throwable th) {
-      throw new RuntimeException("Unable to set id field " + classInfo.idFieldName + " for class " + obj.getClass() + " because: " + th.getMessage());
+      throw new TinyDBException("Unable to set id field " + classInfo.idFieldName + " for class " + obj.getClass() + " because: " + th.getMessage());
     }
     
   }
@@ -124,16 +112,16 @@ public class DBHelper {
     try {
       return (Comparable) obj.getClass().getField(fieldName).get(obj);
     } catch(Throwable th) {
-      throw new RuntimeException("Unable to access field " + fieldName + " for class " + obj.getClass() + " because: " + th.getMessage());
+      throw new TinyDBException("Unable to access field " + fieldName + " for class " + obj.getClass() + " because: " + th.getMessage());
     }
   }
   
   public static NavigableMap<Key, Object> getCreateDataTreeMap(Class<?> clazz) {
     
-    if(_db.getTreeMap(clazz.getName()) == null)
-      return _db.createTreeMap(clazz.getName());
+    if(TinyDB.getInstance().getTreeMap(clazz.getName()) == null)
+      return TinyDB.getInstance().createTreeMap(clazz.getName());
     else
-      return _db.getTreeMap(clazz.getName());
+      return TinyDB.getInstance().getTreeMap(clazz.getName());
     
   }
   
@@ -141,10 +129,10 @@ public class DBHelper {
     
     String indexName = "index__" + clazz.getName() + "__" + indexedFieldName;
     
-    if(_db.getTreeMap(indexName) == null)
-      return _db.createTreeMap(indexName);
+    if(TinyDB.getInstance().getTreeMap(indexName) == null)
+      return TinyDB.getInstance().createTreeMap(indexName);
     else
-      return _db.getTreeMap(indexName);
+      return TinyDB.getInstance().getTreeMap(indexName);
     
   }
   

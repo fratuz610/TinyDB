@@ -1,0 +1,71 @@
+/*
+ * To change this template, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package it.holiday69.tinydb.jdbm;
+
+import it.holiday69.tinydb.exception.TinyDBException;
+import java.io.File;
+import java.util.logging.Logger;
+import net.kotek.jdbm.DB;
+import net.kotek.jdbm.DBMaker;
+
+/**
+ *
+ * @author fratuz610
+ */
+public class TinyDB {
+  
+  private final static Logger log = Logger.getLogger(TinyDB.class.getSimpleName());
+  
+  private final static Object _dbMutex = new Object();
+  
+  private static String _dbName = "db";
+  private static DB _db;
+  
+  /**
+   * Get / returns an instance of the database handle
+   * 
+   * @return an instance of the database handle
+   */
+  public static DB getInstance() {
+    
+    synchronized(_dbMutex) {
+      if(_db == null) {
+
+        // the instance hasn't been created
+
+        File dbFolder = new File(_dbName);
+        if(!dbFolder.exists())
+          dbFolder.mkdir();
+
+        if(!dbFolder.exists() || !dbFolder.isDirectory())
+          throw new TinyDBException("Unable to create the db hosting folder: " + dbFolder);
+
+        _db = DBMaker.openFile(_dbName + "/" + _dbName).make();
+      }
+
+      return _db;
+    }
+    
+  }
+  /**
+   * Sets the name of the database.
+   * 
+   * The name is used to build the file data structure on disk
+   * 
+   * @param name The name to use for the database (default: "db")
+   */
+  public static void setDBName(String name) {
+    
+    synchronized(_dbMutex) {
+      
+      if(_db != null)
+        throw new TinyDBException("Unable to modify the database name once an instance of the database has been created");
+      
+      _dbName = name;
+    }
+    
+  }
+  
+}
