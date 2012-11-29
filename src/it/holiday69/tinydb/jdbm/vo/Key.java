@@ -4,10 +4,13 @@
  */
 package it.holiday69.tinydb.jdbm.vo;
 
+import it.holiday69.tinydb.jdbm.TinyDBDataService;
 import java.io.Serializable;
 
 /**
- *
+ * A wrapper for any {@link Comparable} object used as a key in the {@link TinyDBDataService}
+ * </p>
+ * The keyValue must implement {@link Serializable} as well
  * @author fratuz610
  */
 public class Key implements Comparable<Key>, Serializable {

@@ -4,14 +4,14 @@
  */
 package it.holiday69.tinydb.jdbm.handler;
 
-import it.holiday69.tinydb.exception.TinyDBException;
+import it.holiday69.dataservice.query.FieldFilter;
+import it.holiday69.dataservice.query.OrderFilter;
+import it.holiday69.dataservice.query.OrderType;
+import it.holiday69.dataservice.query.Query;
 import it.holiday69.tinydb.jdbm.TinyDBHelper;
+import it.holiday69.tinydb.jdbm.exception.TinyDBException;
 import it.holiday69.tinydb.jdbm.vo.ClassInfo;
 import it.holiday69.tinydb.jdbm.vo.Key;
-import it.holiday69.tinydb.query.FieldFilter;
-import it.holiday69.tinydb.query.OrderFilter;
-import it.holiday69.tinydb.query.OrderType;
-import it.holiday69.tinydb.query.Query;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -37,6 +37,16 @@ public class GetHandler {
       return new LinkedList<T>(values);
     else
       return new LinkedList<T>();
+  }
+  
+  public <T> T getAny(Class<T> classOfT) {
+    
+    Map.Entry<Key, Object> firstEntry = TinyDBHelper.getCreateDataTreeMap(classOfT).firstEntry();
+    
+    if(firstEntry == null)
+      return null;
+    
+    return (T) firstEntry.getValue();
   }
   
   public <T> T getFromQuery(Query query, Class<T> classOfT) {
@@ -75,7 +85,7 @@ public class GetHandler {
     return finalRetList;
   }
   
-  private <T> List<Key> getKeysFromQuery(Query query, Class<T> classOfT) {
+  public <T> List<Key> getKeysFromQuery(Query query, Class<T> classOfT) {
     
     List<Key> finalKeyList = new LinkedList<Key>();
     
@@ -184,7 +194,7 @@ public class GetHandler {
     return TinyDBHelper.getCreateDataTreeMap(classOfT).keySet().size();
   }
 
-  public <T> long getResultSetSize(String fieldName, Object fieldValue, Class<T> classOfT) {
-    return getKeysFromQuery(new Query().filter(fieldName, fieldValue), classOfT).size();
+  public <T> long getResultSetSize(Query query, Class<T> classOfT) {
+    return getKeysFromQuery(query, classOfT).size();
   }
 }

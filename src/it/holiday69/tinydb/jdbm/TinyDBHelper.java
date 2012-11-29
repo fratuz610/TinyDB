@@ -4,7 +4,7 @@
  */
 package it.holiday69.tinydb.jdbm;
 
-import it.holiday69.tinydb.exception.TinyDBException;
+import it.holiday69.tinydb.jdbm.exception.TinyDBException;
 import it.holiday69.tinydb.jdbm.annotations.Id;
 import it.holiday69.tinydb.jdbm.annotations.Indexed;
 import it.holiday69.tinydb.jdbm.vo.ClassInfo;
