@@ -4,9 +4,9 @@
  */
 package it.holiday69.tinydb.jdbm;
 
-import it.holiday69.tinydb.jdbm.exception.TinyDBException;
 import it.holiday69.tinydb.jdbm.annotations.Id;
 import it.holiday69.tinydb.jdbm.annotations.Indexed;
+import it.holiday69.tinydb.jdbm.exception.TinyDBException;
 import it.holiday69.tinydb.jdbm.vo.ClassInfo;
 import it.holiday69.tinydb.jdbm.vo.Key;
 import java.lang.reflect.Field;
@@ -118,10 +118,7 @@ public class TinyDBHelper {
   
   public static NavigableMap<Key, Object> getCreateDataTreeMap(Class<?> clazz) {
     
-    if(TinyDB.getInstance().getTreeMap(clazz.getName()) == null)
-      return TinyDB.getInstance().createTreeMap(clazz.getName());
-    else
-      return TinyDB.getInstance().getTreeMap(clazz.getName());
+    return TinyDB.getInstance().getTreeMap(clazz.getName());
     
   }
   
@@ -129,10 +126,7 @@ public class TinyDBHelper {
     
     String indexName = "index__" + clazz.getName() + "__" + indexedFieldName;
     
-    if(TinyDB.getInstance().getTreeMap(indexName) == null)
-      return TinyDB.getInstance().createTreeMap(indexName);
-    else
-      return TinyDB.getInstance().getTreeMap(indexName);
+    return TinyDB.getInstance().getTreeMap(indexName);
     
   }
   

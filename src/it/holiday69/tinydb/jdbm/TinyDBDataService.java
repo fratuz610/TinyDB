@@ -12,7 +12,7 @@ import it.holiday69.tinydb.jdbm.handler.PutHandler;
 import it.holiday69.tinydb.jdbm.vo.Key;
 import java.util.List;
 import java.util.logging.Logger;
-import org.apache.jdbm.DB;
+import org.mapdb.DB;
 
 /**
  * An implementation of the DataService interface based on the {@link DB} datastore
@@ -130,11 +130,10 @@ public class TinyDBDataService extends DataService {
  
   /**
    * Performs maintenance tasks on the datastore, compacting and defragging the values
-   * @param quick If true the data s compacted only. If false it's also defragged for faster extracting
    */
-  public void performMaintenance(boolean quick) {
+  public void performMaintenance() {
     synchronized(_db) {
-      _db.defrag(!quick);
+      _db.defrag();
     }
   }
 

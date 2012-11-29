@@ -7,8 +7,8 @@ package it.holiday69.tinydb.jdbm;
 import it.holiday69.tinydb.jdbm.exception.TinyDBException;
 import java.io.File;
 import java.util.logging.Logger;
-import org.apache.jdbm.DB;
-import org.apache.jdbm.DBMaker;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
 
 /**
  *
@@ -43,10 +43,9 @@ public class TinyDB {
         if(!dbFolder.exists() || !dbFolder.isDirectory())
           throw new TinyDBException("Unable to create the db hosting folder: '" + dbFolder + "'");
 
-        DBMaker dbMaker = DBMaker.openFile(_dbFolder + "/" + _dbName);
-        //dbMaker.disableCache();
-        dbMaker.useRandomAccessFile();
-        _db = dbMaker.make();
+        _db = DBMaker.newFileDB(new File(_dbFolder + "/" + _dbName))
+                .closeOnJvmShutdown()
+                .make();
       }
 
       return _db;
