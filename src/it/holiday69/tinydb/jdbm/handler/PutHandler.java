@@ -44,7 +44,7 @@ public class PutHandler {
     // updates the data tree
     dataTree.put(Key.fromKeyValue(entityKeyVal), newObj);
     
-    //log.info("Persisting object : " + newObj);
+    log.info("Persisting object : " + newObj);
     
     // updates all the index trees
     for(String indexedFieldName : classInfo.indexedFieldNameList) {

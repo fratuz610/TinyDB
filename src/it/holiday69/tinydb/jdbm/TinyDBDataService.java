@@ -34,8 +34,11 @@ public class TinyDBDataService extends DataService {
   
   @Override
   public <T> void put(T object) {
+    
+    System.out.println("Saving one object");
     _putHandler.putUncommitted(object);
     
+    System.out.println("Committing");
     _db.commit();
   }
 

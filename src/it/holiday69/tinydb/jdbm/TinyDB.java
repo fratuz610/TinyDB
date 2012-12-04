@@ -44,6 +44,7 @@ public class TinyDB {
           throw new TinyDBException("Unable to create the db hosting folder: '" + dbFolder + "'");
 
         _db = DBMaker.newFileDB(new File(_dbFolder + "/" + _dbName))
+                .transactionDisable()
                 .closeOnJvmShutdown()
                 .make();
       }

@@ -95,7 +95,6 @@ public abstract class Storage implements Engine {
         try{
             writeLock_lock();
 
-
             phys = volFac.createPhysVolume();
             index = volFac.createIndexVolume();
             phys.ensureAvailable(8);
