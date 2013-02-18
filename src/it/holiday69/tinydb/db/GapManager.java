@@ -4,32 +4,14 @@
  */
 package it.holiday69.tinydb.db;
 
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.ByteBufferInputStream;
-import com.esotericsoftware.kryo.io.ByteBufferOutputStream;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
+import it.holiday69.tinydb.db.entity.Gap;
 import it.holiday69.tinydb.db.entity.RecordRef;
-import it.holiday69.tinydb.jdbm.vo.Key;
-import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
 /**
@@ -40,14 +22,13 @@ public class GapManager {
   
   private final static Logger log = Logger.getAnonymousLogger();
   
-  private final int _fileSize = 1024*1024; // 1 mb
+  private final int _gapSize = 10;
   
-  private List<RecordRef> _gapList;
+  private RandomAccessFile _gapFile;
   
-  private final ScheduledExecutorService _bgExecutor = Executors.newSingleThreadScheduledExecutor();
-  private MappedByteBuffer _diskBuffer;
-         
-  private final ReentrantLock _gapListLock = new ReentrantLock();
+  private List<Long> _availableGapList = new LinkedList<Long>();
+          
+  private final ReentrantLock _gapFileLock = new ReentrantLock();
   
   public GapManager(File dbFolder, String dbName) {
     
@@ -56,124 +37,178 @@ public class GapManager {
         throw new RuntimeException("The database folder: " + dbFolder.getAbsolutePath() + " doesn't exist and cannot be created");
     
     try {
-      _diskBuffer = new RandomAccessFile(getGapFile(dbFolder, dbName), "rw").getChannel().map(FileChannel.MapMode.READ_WRITE, 0, _fileSize);
+      _gapFile = new RandomAccessFile(getGapFile(dbFolder, dbName), "rw");
+      
+      _gapFile.seek(0);
+      
+      while(true) {
+        
+        Gap gap = readGap();
+        
+        if(gap == null)
+          break;
+        
+        if(gap.deleted)
+          _availableGapList.add(_gapFile.getFilePointer() - _gapSize);
+      }
     } catch(Throwable th) {
-      throw new RuntimeException("Unable to open/create index file: " + getGapFile(dbFolder, dbName) + " because: " + th.getMessage());
+      throw new RuntimeException("Unable to open/create gap file: " + getGapFile(dbFolder, dbName) + " because: " + th.getMessage());
     }
-    
-    // we read all data into memory
-    readDataFromBuffer();
-    
-    // we schedule all background tasks
-    scheduleBackgroundTasks();
     
   }
   
   private File getGapFile(File dbFolder, String dbName) {
     return new File(dbFolder, dbName+".gap");
   }
-
   
   public RecordRef acquireGap(int minSize) {
     
-    _gapListLock.lock();
-    RecordRef ret = null;
+    _gapFileLock.lock();
+    RecordRef ret = new RecordRef();
+    
     try {
       
-      for(RecordRef gapRef : _gapList) {
-        if(gapRef.size >= minSize) {
-          ret = gapRef;
+      _gapFile.seek(0);
+      
+      while(true) {
+        
+        Gap gap = readGap();
+        
+        if(gap.deleted)
+          continue;
+        
+        if(gap.size >= minSize) {
+          markAsAvailable(gap);
+          ret.offset = gap.offset;
+          ret.size = gap.size;
+          
+          Gap remainderGap =  new Gap();
+          remainderGap.offset = gap.offset + minSize;
+          remainderGap.size = gap.size - minSize;
+          
+          if(remainderGap.size > 0) {
+            System.out.println("There is a reminder for " + remainderGap.size + " adding it");
+            addGap(remainderGap);
+          }
+            
           break;
         }
       }
       
-      if(ret != null) {
-        
-        // we are returning a gap reference, let's update the internal list
-        
-        _gapList.remove(_gapList.indexOf(ret));
-        RecordRef newGapRef = new RecordRef();
-        newGapRef.fileRef = ret.fileRef;
-        newGapRef.offset = ret.offset + minSize;
-        newGapRef.size = ret.size - minSize;
-        
-        if(newGapRef.size >0)
-          _gapList.add(newGapRef);
-      }
-      
+    } catch(IOException ex) {
+      throw new RuntimeException("Unable to read gap file because: " + ex.getMessage());
     } finally {
-      _gapListLock.unlock();
+      _gapFileLock.unlock();
     }
     
     return ret;
-    
   }
-  
-  public void addGap(RecordRef newGap) {
     
-    _gapListLock.lock();
+  public void clear() {
+    
+    _gapFileLock.lock();
     try {
-      _gapList.add(newGap);
-    } finally {
-      _gapListLock.unlock();
-    }
-  }
-  
-  private void scheduleBackgroundTasks() {
-    
-    _bgExecutor.scheduleWithFixedDelay(new Runnable() {
-
-        @Override
-        public void run() {
-          writeDataToBuffer();
-        }
-      }, 10, 10, TimeUnit.SECONDS);
-    
-    Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-
-      @Override
-      public void run() {
-        writeDataToBuffer();
-        _bgExecutor.shutdown();
-      }
-    }));
-  }
-  
-  private void readDataFromBuffer() {
-    
-    
-    _gapListLock.lock();
-    
-    try {
-      Kryo kryo = new Kryo();
-      Input input = new Input(new ByteBufferInputStream(_diskBuffer));
-      _gapList = (List<RecordRef>) kryo.readClassAndObject(input);
-    }  finally {
-      _gapList = new LinkedList<RecordRef>();
-      _gapListLock.unlock();
-    }
-
-    
-  }
-  
-  private void writeDataToBuffer() {
-    
-    System.out.println("Persisting");
-    _gapListLock.lock();
-    
-    try {
-
-      Kryo kryo = new Kryo();
-      _diskBuffer.position(0);
-      ByteBufferOutputStream bout = new ByteBufferOutputStream(_diskBuffer);
-      Output output = new Output(bout);
-      
-      kryo.writeClassAndObject(output, _gapList);
+      _gapFile.setLength(0);
+      _availableGapList.clear();
     } catch(Throwable th) {
-      throw new RuntimeException("Unable to write index data to disk because: " + ExceptionUtils.getDisplableExceptionInfo(th));
+      throw new RuntimeException("Unable to truncate gap file because: " + th.getMessage());
     } finally {
-      _gapListLock.unlock();
+      _gapFileLock.unlock();
     }
-
   }
+   
+  private Gap readGap() {
+    
+    try {
+      
+      if(_gapFile.getFilePointer() == _gapFile.length())
+        return null;
+      
+      byte[] gapBytes = new byte[_gapSize];
+      _gapFile.read(gapBytes);
+      
+      return Gap.fromByteArray(gapBytes);
+      
+    } catch(IOException ex) {
+      throw new RuntimeException("Unable to read GAP object because: " + ex.getMessage());
+    }
+  }
+  
+  public void addGap(RecordRef recordRef) {
+    addGap(Gap.fromRecordRef(recordRef));
+  }
+  
+  private void addGap(Gap newGap) {
+    
+    try {
+      
+      if(!_availableGapList.isEmpty()) {
+          
+        _gapFile.seek(_availableGapList.remove(0));
+        
+      } else {
+        _gapFile.seek(_gapFile.length());
+        
+      }
+      System.out.println("Adding gap at " + _gapFile.getFilePointer());
+      
+      _gapFile.write(Gap.toByteArray(newGap));
+      
+    } catch(IOException ex) {
+      throw new RuntimeException("Unable to add a new GAP object because: " + ex.getMessage());
+    }
+  }
+    
+  private void seekBack() {
+    try {
+      
+      if((_gapFile.getFilePointer() - _gapSize) < 0)
+        return;
+      
+      System.out.println("Seeking back to: " + (_gapFile.getFilePointer()-_gapSize));
+      
+      _gapFile.seek(_gapFile.getFilePointer()-_gapSize);
+      
+    } catch(IOException ex) {
+      throw new RuntimeException("Unable to seek back on the gap file because: " + ex.getMessage());
+    }
+  }
+  
+  private void markAsAvailable(Gap gap) {
+    
+    try {
+      seekBack();
+      _availableGapList.add(_gapFile.getFilePointer());
+      gap.deleted = true;
+      _gapFile.write(Gap.toByteArray(gap));
+    } catch(IOException ex) {
+      throw new RuntimeException("Unable mark gap as available because: " + ex.getMessage());
+    }
+    
+  }
+  
+  public List<Gap> readAllGaps() {
+    
+    List<Gap> retList = new LinkedList<Gap>();
+    
+    try {
+      
+      _gapFile.seek(0);
+      
+      while(true) {
+        
+        Gap gap = readGap();
+        
+        if(gap == null)
+          break;
+        
+        retList.add(gap);
+      }
+      
+      return retList;
+    } catch(IOException ex) {
+      throw new RuntimeException("Unable to read all gaps because: "  + ex.getMessage());
+    }
+  }
+  
 }

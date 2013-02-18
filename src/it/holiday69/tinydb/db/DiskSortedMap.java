@@ -11,8 +11,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
@@ -25,34 +27,25 @@ import java.util.TreeMap;
  */
 public class DiskSortedMap implements SortedMap<Key, Object> {
   
-  private File _dbFolder;
-  
-  private TreeMap<Key, RecordRef> _index;
   private DataManager _dataManager;
   private IndexManager _indexManager;
+  private GapManager _gapManager;
   
   public DiskSortedMap(File dbFolder, String dbName) throws IOException {
     
-    _dbFolder = dbFolder;
-    
-    ObjectInputStream ois = new ObjectInputStream(new FileInputStream(new File(_dbFolder, dbName+".index")));
-    try {
-      _index = (TreeMap<Key, RecordRef>) ois.readObject();
-    } catch(Throwable th) {
-      _index = new TreeMap<Key, RecordRef>();
-    }
-    
     _dataManager = new DataManager(dbFolder, dbName);
+    _indexManager = new IndexManager(dbFolder, dbName);
+    _gapManager = new GapManager(dbFolder, dbName);
   }
     
   @Override
   public Comparator<? super Key> comparator() {
-    return _index.comparator();
+    return _indexManager.comparator();
   }
 
   @Override
   public SortedMap<Key, Object> subMap(Key k, Key k1) {
-    SortedMap<Key, RecordRef> subIndex = _index.subMap(k, k1);
+    SortedMap<Key, RecordRef> subIndex = _indexManager.subMap(k, k1);
     SortedMap<Key, Object> retIndex = new TreeMap<Key, Object>();
     
     for(Key key : subIndex.keySet())
@@ -64,7 +57,7 @@ public class DiskSortedMap implements SortedMap<Key, Object> {
   @Override
   public SortedMap<Key, Object> headMap(Key k) {
     
-    SortedMap<Key, RecordRef> subIndex = _index.headMap(k);
+    SortedMap<Key, RecordRef> subIndex = _indexManager.headMap(k);
     
     SortedMap<Key, Object> retIndex = new TreeMap<Key, Object>();
     
@@ -76,7 +69,7 @@ public class DiskSortedMap implements SortedMap<Key, Object> {
 
   @Override
   public SortedMap<Key, Object> tailMap(Key k) {
-    SortedMap<Key, RecordRef> subIndex = _index.tailMap(k);
+    SortedMap<Key, RecordRef> subIndex = _indexManager.tailMap(k);
     
     SortedMap<Key, Object> retIndex = new TreeMap<Key, Object>();
     
@@ -88,17 +81,17 @@ public class DiskSortedMap implements SortedMap<Key, Object> {
 
   @Override
   public Key firstKey() {
-    return _index.firstKey();
+    return _indexManager.firstKey();
   }
 
   @Override
   public Key lastKey() {
-    return _index.lastKey();
+    return _indexManager.lastKey();
   }
 
   @Override
   public Set<Key> keySet() {
-    return _index.keySet();
+    return _indexManager.keySet();
   }
 
   @Override
@@ -106,51 +99,65 @@ public class DiskSortedMap implements SortedMap<Key, Object> {
     
     Collection<Object> retList = new LinkedList<Object>();
     
-    for(Key key : _index.keySet())
-      retList.add(_dataManager.getRecord(_index.get(key)));
+    for(Key key : _indexManager.keySet())
+      retList.add(_dataManager.getRecord(_indexManager.get(key)));
     
     return retList;
   }
 
   @Override
   public Set<Entry<Key, Object>> entrySet() {
-    throw new UnsupportedOperationException("Not supported yet.");
+    Set<Entry<Key, RecordRef>> indexEntrySet = _indexManager.entrySet();
+    
+    Set<Entry<Key, Object>> ret = new HashSet<Entry<Key, Object>>();
+    
+    for(Entry<Key, RecordRef> indexEntry : indexEntrySet)
+      ret.add(new AbstractMap.SimpleEntry<Key, Object>(indexEntry.getKey(), _dataManager.getRecord(indexEntry.getValue())));
+    
+    return ret;
   }
 
   @Override
   public int size() {
-    return _index.size();
+    return _indexManager.size();
   }
 
   @Override
   public boolean isEmpty() {
-    return _index.isEmpty();
+    return _indexManager.isEmpty();
   }
 
   @Override
   public boolean containsKey(Object o) {
-    return _index.containsKey(o);
+    return _indexManager.containsKey(o);
   }
 
   @Override
   public boolean containsValue(Object o) {
-    return _index.containsValue(o);
+    return _indexManager.containsValue(o);
   }
 
   @Override
   public Object get(Object o) {
-    return _dataManager.getRecord(_index.get(o));
+    return _dataManager.getRecord(_indexManager.get(o));
   }
 
   @Override
   public Object put(Key k, Object v) {
-    _index.put(k, _dataManager.putRecord(v));
+    _indexManager.put(k, _dataManager.putRecord(v));
     return null;
   }
 
   @Override
   public Object remove(Object o) {
-    return _index.remove(o);
+    
+    // we remove the item from the index
+    RecordRef ref = _indexManager.remove(o);
+    
+    // we add the item to the gap list
+    _gapManager.addGap(ref);
+    
+    return _dataManager.getRecord(ref);
   }
 
   @Override
@@ -158,11 +165,14 @@ public class DiskSortedMap implements SortedMap<Key, Object> {
     
     for(Key key : map.keySet())
       put(key, map.get(key));
+
   }
 
   @Override
   public void clear() {
-    _index.clear();
+    _indexManager.clear();
+    _dataManager.clear();
+    _gapManager.clear();
   }
   
 }

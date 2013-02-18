@@ -14,9 +14,7 @@ import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
 /**
@@ -27,18 +25,25 @@ public class DataManager {
   
   private final static Logger log = Logger.getAnonymousLogger();
   
-  private final int _fileSize = 1024*1024; // 1 mb
-  private final int _maxNumFile = 2048; // 2048 files
+  private int _fileSizeUnit;
   
   private File _dbFolder;
   private String _dbName;
   
-  private Map<Integer, MappedByteBuffer> _dataBufferMap = new HashMap<Integer, MappedByteBuffer>();
-  private Map<Integer, Integer> _dbFileCursorMap = new HashMap<Integer, Integer>();
-  private int _lastDbFileIndex = 0;
+  private final ReentrantReadWriteLock _dataLock = new ReentrantReadWriteLock();
   
+  private RandomAccessFile _diskRaf;
+  private MappedByteBuffer _diskBuffer;
+  private int _diskBufferSize;
+  private GapManager _gapManager;
+  
+  private int _diskBufferOffset = 0;
   
   public DataManager(File dbFolder, String dbName) {
+    this(dbFolder, dbName, 1024*1024); // fileSize unit defaults to 1mb
+  }
+  
+  public DataManager(File dbFolder, String dbName, int fileSizeUnit) {
     
     if(!dbFolder.exists())
       if(!dbFolder.mkdir())
@@ -47,116 +52,184 @@ public class DataManager {
     _dbFolder = dbFolder;
     _dbName = dbName;
     
-    // we determine which is the last file available
-    for(_lastDbFileIndex = 0; _lastDbFileIndex < _maxNumFile; _lastDbFileIndex++) {
-      File dbFile = getDBFile(_dbFolder, _dbName, _lastDbFileIndex);
-      
-      if(!dbFile.exists()) {
-        if(_lastDbFileIndex > 0)
-          _lastDbFileIndex--;
-        break;
-      }
-    }
+    // we create the disk buffer
+    _diskBuffer = getCreateBuffer();
     
-    System.out.println("DataManager: _lastDbFileIndex: " + _lastDbFileIndex);
+    _gapManager = new GapManager(dbFolder, dbName);
+  }
+  
+  public Object getRecord(int offset, int size) {
     
-    // we create the memory buffers
-    for(int i = 0; i <= _lastDbFileIndex; i++)
-      _dataBufferMap.put(i, getCreateBuffer(i));
+    RecordRef ref = new RecordRef();
+    ref.offset = offset;
+    ref.size = size;
+    return getRecord(ref);
   }
   
   public Object getRecord(RecordRef ref) {
     
-    MappedByteBuffer buffer = _dataBufferMap.get(ref.fileRef);
-    
-    if(buffer == null) {
-      System.out.println("No fileBuffer at index: " + ref.fileRef);
-      return null;
-    }
-      
-    byte[] dataBuffer = new byte[ref.size];
-    System.out.println("Getting data from file " + ref.fileRef + " offset: " + ref.offset + " and size: " + ref.size);
-    buffer.position(ref.offset);
-    buffer.get(dataBuffer);
-    
+    _dataLock.readLock().lock();
     try {
+
+      byte[] dataBuffer = new byte[ref.size];
+      System.out.println("Getting data from offset: " + ref.offset + " and size: " + ref.size);
+      _diskBuffer.position(ref.offset);
+      _diskBuffer.get(dataBuffer);
+
       Kryo kryo = new Kryo();
       Input input = new Input(dataBuffer);
       return kryo.readClassAndObject(input);
-    } catch(Throwable ex) {
-      System.out.println("Unable to deserialize item: " + ExceptionUtils.getFullExceptionInfo(ex));
-      return null;
+      
+    } catch(Throwable th) {
+      System.out.println("Unable to deserialize item: " + ExceptionUtils.getFullExceptionInfo(th));
+    } finally {
+      _dataLock.readLock().unlock();
     }
+    
+    return null;
+    
   }
   
   public RecordRef putRecord(Object obj) {
+    return putRecord(obj, -1);
+  }
+  
+  public RecordRef putRecord(Object obj, int targetOffset) {
     
-    // we serialize the class
-    Kryo kryo = new Kryo();
-    ByteArrayOutputStream bout = new ByteArrayOutputStream();
-    Output output = new Output(bout);
-    kryo.writeClassAndObject(output, obj);
-    
-    byte[] data = bout.toByteArray();
-    
-    //System.out.println("" + data.length + " bytes to write");
-    
+    _dataLock.writeLock().lock();
     RecordRef ref = new RecordRef();
     
-    int targetFileNum = _lastDbFileIndex;
-    
-    int offset = getBufferOffset(targetFileNum);
+    try {
+      // we serialize the class
+      Kryo kryo = new Kryo();
+      ByteArrayOutputStream bout = new ByteArrayOutputStream();
+      Output output = new Output(bout);
+      kryo.writeClassAndObject(output, obj);
+
+      byte[] data = bout.toByteArray();
+
+      System.out.println("" + data.length + " bytes to write");
       
-    if(offset + data.length > _fileSize) {
-      System.out.println("Moving target file to " + (targetFileNum+1));
-      targetFileNum++;
+      if(targetOffset != -1) {
+        
+        if(targetOffset >= _diskBufferOffset)
+          throw new RuntimeException("Unable to update a record at offset: " + targetOffset + " because it's past the end of the current db size");
+        
+        // we save on the offset requested
+        ref.offset = targetOffset;
+        ref.size = data.length;
+        
+        MappedByteBuffer updatedBuf = getCreateBuffer(_diskBufferOffset);
+        updatedBuf.position(ref.offset);
+        updatedBuf.put(data);
+        
+      } else {
+      
+        RecordRef gapRef = _gapManager.acquireGap(data.length);
+
+        // we can overwrite
+        if(gapRef != null) {
+          _diskBuffer.position(ref.offset);
+          _diskBuffer.put(data);
+          return gapRef;
+        }
+
+        // we need to append
+        MappedByteBuffer updatedBuf = getCreateBuffer(_diskBufferOffset + data.length);
+
+        ref.offset = _diskBufferOffset;
+        ref.size = data.length;
+
+        updatedBuf.position(ref.offset);
+        updatedBuf.put(data);
+
+        _diskBufferOffset += data.length;
+
+        System.out.println("New offset: " + _diskBufferOffset);
+      }
+
+    } finally {
+      _dataLock.writeLock().unlock();
     }
-    
-    //System.out.println("Selected " + targetFileNum + " as the file to use");
-    
-    MappedByteBuffer buf = getCreateBuffer(targetFileNum);
-    
-    ref.fileRef = targetFileNum;
-    ref.offset = getBufferOffset(targetFileNum);
-    ref.size = data.length;
-    
-    buf.position(ref.offset);
-    buf.put(data);
-    
-    increaseBufferCursor(targetFileNum, data.length);
     
     return ref;
   }
   
-  private MappedByteBuffer getCreateBuffer(int number) {
+  public void clear() {
+    
+    _dataLock.writeLock().lock();
+    
+    // closes all files
+    deleteDiskBuffer();
+    
+    _dataLock.writeLock().unlock();
+  }
+  
+  private MappedByteBuffer getCreateBuffer() {
+    
+    File file = getDBFile(_dbFolder, _dbName);
+    
+    int targetLength = file.length() >= _fileSizeUnit?(int)file.length():_fileSizeUnit;
+    
+    return getCreateBuffer(targetLength);
+  }
+  
+  private MappedByteBuffer getCreateBuffer(int sizeRequired) {
     
     try {
     
-      if(!_dataBufferMap.containsKey(number)) {
+      File file = getDBFile(_dbFolder, _dbName);
+      
+      int targetSize = (int) file.length();
+      
+      // if we already have a disk buffer big enough
+      if(_diskBuffer != null) {
         
-        File file = getDBFile(_dbFolder, _dbName, number);
-        
-        MappedByteBuffer buf = new RandomAccessFile(file, "rw").getChannel().map(FileChannel.MapMode.READ_WRITE, 0, _fileSize);
-        _dataBufferMap.put(number, buf);
-        _dbFileCursorMap.put(number, getFileOffsetByte(buf));
-        
-        if(_lastDbFileIndex < number)
-          _lastDbFileIndex = number;
-        
-       System.out.println("getCreateBuffer: creating MappedByteBuffer: " + file.getAbsolutePath() + " offset: " + _dbFileCursorMap.get(number));
+        if(_diskBufferSize >= sizeRequired)
+          return _diskBuffer;
+        else {
+          _diskBuffer.force();
+          _diskRaf.getChannel().close();
+          _diskRaf.close();
+        }
       }
       
-      return _dataBufferMap.get(number);
+      while(sizeRequired > targetSize)
+        targetSize += _fileSizeUnit;
+      
+      System.out.println("Creating a new memory channel with size: " + targetSize);
+      
+      _diskRaf = new RandomAccessFile(file, "rw");
+      _diskBuffer = _diskRaf.getChannel().map(FileChannel.MapMode.READ_WRITE, 0, targetSize);
+      _diskBufferSize = targetSize;
+      _diskBufferOffset = getFileOffsetByte(_diskBuffer);
+
+      return _diskBuffer;
       
     } catch(Throwable th) {
-      throw new RuntimeException("Unable to open/create memory mapped file: " + _dbFolder + "/" + _dbName+number+".data because: " + th.getMessage());
+      throw new RuntimeException("Unable to open/create memory mapped file: " + _dbFolder + "/" + _dbName+".data because: " + th.getMessage());
+    }
+  }
+  
+  private void deleteDiskBuffer() {
+    
+    try {
+      _diskBuffer.force();
+      _diskRaf.getChannel().close();
+      _diskRaf.close();
+
+      _diskBuffer = null;
+      _diskBufferSize = _fileSizeUnit;
+      _diskBufferOffset = 0;
+    } catch(Throwable th) {
+      throw new RuntimeException("Unable to deleteDiskBuffer because: " + th.getMessage());
     }
   }
   
   private int getFileOffsetByte(MappedByteBuffer buf) {
     
     int lastByte;
-    for(lastByte = _fileSize-1; lastByte >=0; lastByte--) {
+    for(lastByte = _fileSizeUnit-1; lastByte >=0; lastByte--) {
       if(buf.get(lastByte) !=0)
         return lastByte+1;
     }
@@ -164,24 +237,8 @@ public class DataManager {
     return 0;
   }
   
-  private File getDBFile(File dbFolder, String dbName, int index) {
-    return new File(dbFolder, dbName+index+".data");
-  }
-  
-  private int getBufferOffset(int index) {
-    if(!_dbFileCursorMap.containsKey(index))
-      throw new RuntimeException("No file opened with index: " + index);
-    return _dbFileCursorMap.get(index);
-  }
-  
-  private void increaseBufferCursor(int index, int offset) {
-    if(!_dbFileCursorMap.containsKey(index))
-      throw new RuntimeException("No file opened with index: " + index);
-    _dbFileCursorMap.put(index, _dbFileCursorMap.get(index) + offset); 
-  }
-  
-  private Set<Integer> getBufferKeySet() {
-    return _dataBufferMap.keySet();
+  private File getDBFile(File dbFolder, String dbName) {
+    return new File(dbFolder, dbName+".data");
   }
   
 }
