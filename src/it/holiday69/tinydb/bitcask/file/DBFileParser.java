@@ -7,7 +7,10 @@ package it.holiday69.tinydb.bitcask.file;
 import it.holiday69.tinydb.bitcask.Bitcask;
 import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
 import it.holiday69.tinydb.bitcask.file.keydir.vo.KeyRecord;
+import it.holiday69.tinydb.bitcask.file.utils.HessianUtils;
+import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
 import it.holiday69.tinydb.db.utils.SerialUtils;
+import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -26,11 +29,12 @@ public class DBFileParser {
   
   private File _dbFile;
   private int _recordsParsed = 0;
+  private Class<? extends Comparable> _keyClass;
   
   public DBFileParser(File dbFile) {
     
-    if(dbFile.exists() || !dbFile.isDirectory())
-      throw new RuntimeException("The file "+dbFile+" does not exist!");
+    if(!dbFile.exists())
+      throw new IllegalArgumentException("The file "+dbFile+" does not exist!");
     
     _dbFile = dbFile;
   }
@@ -51,8 +55,22 @@ public class DBFileParser {
         
         _recordsParsed++;
         
+        //_log.info("Processed record: " + record.key + " => " + record.keyRecord);
+        
+        if(retMap.containsKey(record.key)) {
+          KeyRecord oldRecord = retMap.get(record.key);
+          
+          if(oldRecord.timestamp > record.keyRecord.timestamp)
+            continue;
+        }
+        
+        if(_keyClass == null)
+          _keyClass = record.key.getValue().getClass();
+        
         retMap.put(record.key, record.keyRecord);
       }
+      
+      _log.info("Successfully retrieved " + _recordsParsed + " records");
       
       fis.close();
     } catch(IOException ex) {
@@ -62,29 +80,22 @@ public class DBFileParser {
     return retMap;
   }
   
-  public KeyRecordWrapper readRecord(InputStream is) {
+  private KeyRecordWrapper readRecord(InputStream is) {
     
     try {
       
       KeyRecordWrapper ret = new KeyRecordWrapper();
       ret.keyRecord = new KeyRecord().withFile(_dbFile);
       
-      byte[] tempBa = new byte[8];
-      
-      is.read(tempBa);
-      long crcValue = SerialUtils.byteArrayToLong(tempBa);
-      
-      is.read(tempBa);
-      long ts = SerialUtils.byteArrayToLong(tempBa);
+      long crcValue = KryoUtils.readLong(is);
+      long ts = KryoUtils.readLong(is);
       
       // we save the timestamp value
       ret.keyRecord.timestamp = ts;
       
-      is.read(tempBa);
-      long keySize = SerialUtils.byteArrayToLong(tempBa);
-      
-      is.read(tempBa);
-      long valueSize = SerialUtils.byteArrayToLong(tempBa);
+      // we read the key size (4 bytes);
+      int keySize = KryoUtils.readInt(is);
+      int valueSize = KryoUtils.readInt(is);
       
       // we save the value size
       ret.keyRecord.valueSize = valueSize;
@@ -101,12 +112,15 @@ public class DBFileParser {
       
       return ret;
       
-    } catch(IOException ex) {
+    } catch(Throwable th) {
+      _log.info("Unable to parse record because: " +  ExceptionUtils.getFullExceptionInfo(th));
       return null;
     }
   }
   
   public int getRecordsParsed() { return _recordsParsed; } 
+  
+  public Class<? extends Comparable> getKeyClass() { return _keyClass; }
   
   public static class KeyRecordWrapper {
     public KeyRecord keyRecord;

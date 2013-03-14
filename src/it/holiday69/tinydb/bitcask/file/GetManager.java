@@ -5,7 +5,10 @@
 package it.holiday69.tinydb.bitcask.file;
 
 import it.holiday69.tinydb.bitcask.file.keydir.vo.KeyRecord;
+import it.holiday69.tinydb.bitcask.lock.FileLockManager;
+import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.FileInputStream;
+import java.util.logging.Logger;
 
 /**
  *
@@ -13,29 +16,41 @@ import java.io.FileInputStream;
  */
 public class GetManager {
   
-  //private final static int MAX_CONCURRENT_FIS = 20;
+  private final Logger _log = Logger.getLogger(GetManager.class.getSimpleName());
   
-  //private final Map<File, FileInputStream> _openFisMap = new HashMap<File, FileInputStream>();
+  public final FileLockManager _fileLockManager;
+  
+  public GetManager(FileLockManager fileLockManager) {
+    _fileLockManager = fileLockManager;
+  }
   
   public GetManager() {
-    
+    _fileLockManager = null;
   }
   
   public byte[] retrieveRecord(KeyRecord keyRecord) {
     
     try {
+      // we lock the file for reading if we can
+      if(_fileLockManager != null)
+        _fileLockManager.readLockFile(keyRecord.file);
       
       FileInputStream fis = new FileInputStream(keyRecord.file);
       
       byte[] ret = new byte[(int)keyRecord.valueSize];
       
-      fis.read(ret, (int)keyRecord.valuePosition, (int)keyRecord.valueSize);
-      
+      fis.skip(keyRecord.valuePosition);
+      fis.read(ret);
       fis.close();
       
       return ret;
     } catch(Throwable th) {
+      _log.severe(ExceptionUtils.getFullExceptionInfo(th));
       throw new RuntimeException("Unable to retrieve record from file: " + keyRecord.file + " : ", th);
+    } finally {
+      // we unlock the file no matter what
+      if(_fileLockManager != null)
+        _fileLockManager.readUnlockFile(keyRecord.file);
     }
   }
   

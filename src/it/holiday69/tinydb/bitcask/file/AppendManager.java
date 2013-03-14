@@ -4,11 +4,12 @@
  */
 package it.holiday69.tinydb.bitcask.file;
 
-import it.holiday69.tinydb.bitcask.Bitcask;
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Record;
+import it.holiday69.tinydb.bitcask.file.keydir.vo.AppendInfo;
 import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
+import it.holiday69.tinydb.bitcask.file.keydir.vo.Record;
 import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
+import it.holiday69.tinydb.bitcask.lock.FileLockManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.Date;
@@ -30,44 +31,21 @@ public class AppendManager {
   private int _currentRecordNumber;
   
   private BitcaskOptions _options;
+  private FileLockManager _fileLockManager;
   
-  public AppendManager(BitcaskOptions options) {
+  public AppendManager(BitcaskOptions options, FileLockManager fileLockManager) {
     _options = options;
+    _fileLockManager = fileLockManager;
     
-    _dbFolder = new File(options.dbFolder, options.dbName);
+    _dbFolder = new File(options.dbFolder);
     
-    _log.info("Db Folder" + _dbFolder);
+    _log.info("Db Folder " + _dbFolder);
     
     if(!_dbFolder.exists() && !_dbFolder.mkdir())
       throw new RuntimeException("DB folder: " + _dbFolder + " doesn't exist and cannot be created");
     
-    // we scan the target folder
-    File[] dbFileList = DBFileUtils.getDBFileList(_dbFolder, _options.dbName);
-    
-    // no files found, starting with one brand new
-    if(dbFileList.length == 0) {
-      _currentFile = new File(_options.dbFolder, _options.dbName + ".db.000");
-      _currentFileNumber = 0;
-      _currentRecordNumber = 0;
-      _currentFilePos = 0;
-      return;
-    }
-    
-    // we get the last file and parse it
-    _currentFile = dbFileList[dbFileList.length-1];
-    
-    DBFileParser parser = new DBFileParser(_currentFile);
-    parser.parseDBFile();
-    
-    _currentFileNumber = DBFileUtils.getDBFileNumber(_currentFile);
-    _currentRecordNumber = parser.getRecordsParsed();
-    
-    if(parser.getRecordsParsed() >= _options.recordPerFile) {
-      _currentFileNumber++;
-      _currentFile = DBFileUtils.getDBFile(_dbFolder, _options.dbName, _currentFileNumber);
-      _currentRecordNumber = 0;
-      _currentFilePos = 0;
-    } 
+    // initialization on the first entry entered
+    // nothing to do here
   }
   
   public AppendInfo appendRecord(Key key, byte[] data) {
@@ -75,8 +53,24 @@ public class AppendManager {
     try {
       Record record = new Record(key.toByteArray(), data);
       
-      if(_currentFos == null)
+      if(_currentFos == null) {
+        
+        // we determine the max file number again
+        _currentFileNumber = getMaxFileNumber()+1;
+        
+        _currentFile = DBFileUtils.getDBFile(_dbFolder, _options.dbName, _currentFileNumber);
+        
+        if(_currentFile.exists()) {
+          _currentFile = DBFileUtils.getDBFile(_dbFolder, _options.dbName, _currentFileNumber+1);
+          _currentFileNumber++;
+        }
+        
+        _currentFilePos = 0;
+        _currentRecordNumber = 0;
+        
         _currentFos = new FileOutputStream(_currentFile, true);
+        _fileLockManager.setAppendFile(_currentFile);
+      }
       
       AppendInfo appendInfo = new AppendInfo();
       appendInfo.appendFile = _currentFile;
@@ -85,19 +79,33 @@ public class AppendManager {
       appendInfo.valuePosition = _currentFilePos + record.relativeValuePosition();
       appendInfo.timestamp = new Date().getTime();
       
-      _currentFos.write(record.toByteArray());
-      _currentFos.flush();
+      // we lock until the file is available
+      _fileLockManager.writeLockFile(_currentFile);
+      
+      try {
+        _currentFos.write(record.toByteArray());
+        _currentFos.flush();
+      } finally {
+        // we unlock the file for writing
+        _fileLockManager.writeUnlockFile(_currentFile);
+      }
+        
       
       _currentFilePos += record.toByteArray().length;
       _currentRecordNumber++;
       
+      _log.info("Appended record with info " + appendInfo);
+      
       if(_currentRecordNumber >= _options.recordPerFile) {
+        
+        _log.info("Reached the limit of " + _options.recordPerFile + " creating a new file: " + (_currentFileNumber+1));
+         
         // we move to another file
         _currentFos.close();
         _currentFos = null;
-        _currentFileNumber++;
-        _currentFile = DBFileUtils.getDBFile(_dbFolder, _options.dbName, _currentFileNumber);
-        _currentFilePos = 0;
+        
+        // no append file in use yet (it will be for the next append)
+        _fileLockManager.setAppendFile(null);
       }
       
       return appendInfo;
@@ -107,11 +115,21 @@ public class AppendManager {
     }
   }
   
-  public static class AppendInfo {
-    public File appendFile;
-    public long keySize;
-    public long valueSize;
-    public long valuePosition;
-    public long timestamp;
+  private int getMaxFileNumber() {
+    
+    // we scan the target folder
+    File[] dbFileList = DBFileUtils.getDBFileList(_dbFolder, _options.dbName);
+    
+    int maxFileNumber = -1;
+    
+    for(File file : dbFileList) {
+      int fileNumber = DBFileUtils.getDBFileNumber(file);
+      if(fileNumber > maxFileNumber)
+        maxFileNumber = fileNumber;
+    }
+    
+    return maxFileNumber;
   }
+  
+  
 }

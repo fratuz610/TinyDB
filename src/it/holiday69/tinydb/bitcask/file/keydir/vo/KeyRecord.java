@@ -13,13 +13,13 @@ import java.io.File;
 public class KeyRecord {
   
   public File file;
-  public long valueSize;
+  public int valueSize;
   public long valuePosition;
   public long timestamp;
   
   public KeyRecord withFile(File src) { this.file = src; return this; }
 
-  public KeyRecord withValueSize(long src) { this.valueSize = src; return this; }
+  public KeyRecord withValueSize(int src) { this.valueSize = src; return this; }
   public KeyRecord withValuePosition(long src) { this.valuePosition = src; return this; }
   public KeyRecord withTimestamp(long src) { this.timestamp = src; return this; }
   

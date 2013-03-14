@@ -83,8 +83,8 @@ public class DBFileNameUtilsTest {
   @Test
   public void testIsValidDBFileName() {
     System.out.println("isValidDBFileName");
-    String fileName = "test.db.0001";
-    boolean result = DBFileUtils.isValidDBFileName(fileName);
+    String fileName = "hello-world.db.0001";
+    boolean result = DBFileUtils.isValidDBFileName(fileName, "hello-world");
     assertEquals(true, result);
   }
   
@@ -92,19 +92,19 @@ public class DBFileNameUtilsTest {
   public void testInvalidDBFileName() {
     System.out.println("isValidDBFileName");
     String fileName = "test.dba.0001";
-    boolean result = DBFileUtils.isValidDBFileName(fileName);
+    boolean result = DBFileUtils.isValidDBFileName(fileName, "test");
     assertEquals(false, result);
     
     fileName = "test.dba.0001";
-    result = DBFileUtils.isValidDBFileName(fileName);
+    result = DBFileUtils.isValidDBFileName(fileName, "test");
     assertEquals(false, result);
     
     fileName = "testdb.1";
-    result = DBFileUtils.isValidDBFileName(fileName);
+    result = DBFileUtils.isValidDBFileName(fileName, "test");
     assertEquals(false, result);
     
     fileName = "test.db";
-    result = DBFileUtils.isValidDBFileName(fileName);
+    result = DBFileUtils.isValidDBFileName(fileName, "test");
     assertEquals(false, result);
   }
 }

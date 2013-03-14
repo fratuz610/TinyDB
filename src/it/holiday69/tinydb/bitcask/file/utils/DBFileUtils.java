@@ -5,25 +5,36 @@
 
 package it.holiday69.tinydb.bitcask.file.utils;
 
+import it.holiday69.tinydb.bitcask.file.AppendManager;
+import it.holiday69.tinydb.db.utils.HashUtils;
+import it.holiday69.tinydb.utils.Base64;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.xml.bind.DatatypeConverter;
 
 /**
  *
  * @author Stefano Fratini <stefano.fratini@yeahpoint.com>
  */
 public class DBFileUtils {
+  
+  private final static Logger _log = Logger.getLogger(DBFileUtils.class.getSimpleName());
 
   public static File getDBFile(File dbFolder, String dbName, int index) {
-    return new File(dbFolder, dbName + ".db." + index);
+    return new File(dbFolder, getTranslatedDBName(dbName) + ".db." + index);
   }
   
   public static File getHintFile(File dbFolder, String dbName) {
-    return new File(dbFolder, dbName + ".db.hint");
+    return new File(dbFolder, getTranslatedDBName(dbName) + ".db.hint");
+  }
+  
+  public static File getTempHintFile(File dbFolder, String dbName) {
+    return new File(dbFolder, getTranslatedDBName(dbName) + ".db.hint.temp");
   }
   
   public static Integer getDBFileNumber(File dbFile) {
@@ -36,10 +47,10 @@ public class DBFileUtils {
     return Integer.parseInt(matcher.group(2));
   }
   
-  public static boolean isValidDBFileName(String dbName, String fileName) {
+  public static boolean isValidDBFileName(String fileName, String dbName) {
     Pattern pattern = Pattern.compile("(.*)\\.db\\.(\\d+)$");
-    Matcher matcher = pattern.matcher(dbName);
-    return matcher.matches() && matcher.group(1).equals(dbName);
+    Matcher matcher = pattern.matcher(fileName);
+    return matcher.matches() && matcher.group(1).equals(getTranslatedDBName(dbName));
   }
   
   public static File[] getDBFileList(File dbFolder, final String dbName) {
@@ -48,7 +59,7 @@ public class DBFileUtils {
 
       @Override
       public boolean accept(File dir, String fileName) {
-        return isValidDBFileName(dbName, fileName);
+        return isValidDBFileName(fileName, dbName);
       }
     });
     
@@ -74,4 +85,7 @@ public class DBFileUtils {
     return dbFileList;
   }
   
+  private static String getTranslatedDBName(String dbName) {
+    return DatatypeConverter.printHexBinary(HashUtils.SHA256(dbName)).substring(0, 20);
+  }
 }

@@ -4,9 +4,9 @@
  */
 package it.holiday69.tinydb.bitcask.file.keydir.vo;
 
-import it.holiday69.tinydb.db.utils.SerialUtils;
-import it.holiday69.tinydb.utils.ExceptionUtils;
-import java.io.ByteArrayOutputStream;
+import it.holiday69.tinydb.bitcask.file.utils.HessianUtils;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -15,66 +15,43 @@ import java.util.Arrays;
  */
 public class Key implements Comparable<Key> {
   
-  public enum Type {LONG, STRING};
-  
-  public static final int STRING_ENCODING = 0x00;
-  public static final int LONG_ENCODING = 0x01;
-  
-  private Type _type;
-  
-  private Object _value;
+  private Object _keyValue;
   private byte[] _byteArray;
   
   public Key fromString(String src) {
     
-    _type = Type.STRING;
-    _value = src;
-    
-    try {
-      ByteArrayOutputStream bout = new ByteArrayOutputStream();
-      bout.write(STRING_ENCODING);
-      bout.write(src.getBytes());
-      _byteArray = bout.toByteArray();
-    } catch(Throwable th) {
-      throw new RuntimeException("Unable to convert key to byte arrat: " + ExceptionUtils.getDisplableExceptionInfo(th));
-    }
+    _keyValue = src;
+    _byteArray = HessianUtils.writeString(src);
     
     return this;
   }
   
   public Key fromLong(long src) {
-    _type = Type.LONG;
-    _value = src;
-    
-    try {
-      ByteArrayOutputStream bout = new ByteArrayOutputStream();
-      bout.write(LONG_ENCODING);
-      bout.write(SerialUtils.longToByteArray(src));
-      _byteArray = bout.toByteArray();
-    } catch(Throwable th) {
-      throw new RuntimeException("Unable to convert key to byte arrat: " + ExceptionUtils.getDisplableExceptionInfo(th));
-    }
-    
+    _keyValue = src;
+    _byteArray = HessianUtils.writeLong(src);
     return this;
   }
   
-  public Key fromByteArray(byte[] src) {
+  public Key fromDouble(double src) {
+    _keyValue = src;
+    _byteArray = HessianUtils.writeDouble(src);
+    return this;
+  }
+  
+  public Key fromInt(int src) {
+    _keyValue = src;
+    _byteArray = HessianUtils.writeInt(src);
+    return this;
+  }
+  
+  public Key fromByteArray(byte[] src) throws IOException {
    
-    byte keyType = src[0];
-    byte[] contentPart = Arrays.copyOfRange(src, 1, src.length);
-    
-    
-    if(keyType == LONG_ENCODING) {
-      _type = Type.LONG;
-      _value = SerialUtils.byteArrayToLong(contentPart);
-    } else if(keyType == STRING_ENCODING) {
-      _type = Type.STRING;
-      _value = new String(contentPart);
-    } else
-      throw new IllegalArgumentException("Byte array does not contain any known encoding");
-    
     _byteArray = src;
+    _keyValue = HessianUtils.readObject(new ByteArrayInputStream(src));
     
+    if(!(_keyValue instanceof Comparable))
+      throw new RuntimeException("Unable to create a key from a non comparable type: " + _keyValue.getClass());
+              
     return this;
   }
   
@@ -91,15 +68,13 @@ public class Key implements Comparable<Key> {
     return ret;
   }
   
-  public Type getType() { return _type; }
-  
-  public Object getValue() { return _value; }
+  public Comparable getValue() { return (Comparable) _keyValue; }
 
   @Override
   public int hashCode() {
-    int hash = 3;
-    hash = 29 * hash + (this._type != null ? this._type.hashCode() : 0);
-    hash = 29 * hash + (this._value != null ? this._value.hashCode() : 0);
+    int hash = 5;
+    hash = 53 * hash + (this._keyValue != null ? this._keyValue.hashCode() : 0);
+    hash = 53 * hash + Arrays.hashCode(this._byteArray);
     return hash;
   }
 
@@ -112,10 +87,10 @@ public class Key implements Comparable<Key> {
       return false;
     }
     final Key other = (Key) obj;
-    if (this._type != other._type) {
+    if (this._keyValue != other._keyValue && (this._keyValue == null || !this._keyValue.equals(other._keyValue))) {
       return false;
     }
-    if (this._value != other._value && (this._value == null || !this._value.equals(other._value))) {
+    if (!Arrays.equals(this._byteArray, other._byteArray)) {
       return false;
     }
     return true;
@@ -123,24 +98,12 @@ public class Key implements Comparable<Key> {
 
   @Override
   public String toString() {
-    return "Key{" + "_type=" + _type + ", _value=" + _value + '}';
+    return "Key{" + "_keyValue=" + _keyValue + ", _byteArray=" + _byteArray + '}';
   }
 
   @Override
   public int compareTo(Key o) {
-    
-    if(_type != o.getType())
-      throw new RuntimeException("Unable to compare keys with different types");
-    
-    switch(_type) {
-      case LONG: 
-        return ((Long) _value).compareTo((Long) o.getValue()); 
-      case STRING: 
-        return ((String) _value).compareTo((String) o.getValue());
-    }
-    
-    throw new RuntimeException("Unable to compare keys with unknown types: " + _type);
-    
+    return getValue().compareTo(o.getValue());
   }
   
 }

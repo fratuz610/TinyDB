@@ -14,32 +14,49 @@ import java.nio.ByteBuffer;
 public class SerialUtils {
   
   public static byte[] longToByteArray(long value) {
+    return longToByteArray(value, 8);
+  }
+  
+  public static byte[] longToByteArray(long value, int storageSize) {
+    
+    if(storageSize > 8 || storageSize < 1)
+      throw new IllegalArgumentException("The storage size value should be 1<->8");
+    
     ByteBuffer dbuf = ByteBuffer.allocate(8);
     dbuf.putLong(value);
-    return dbuf.array();
+    return ByteArrayUtils.trimLeft(dbuf.array(), 8-storageSize);
   }
   
   public static byte[] intToByteArray(int value) {
+    return intToByteArray(value, 4);
+  }
+  
+  public static byte[] intToByteArray(int value, int storageSize) {
+    
+    if(storageSize > 4 || storageSize < 1)
+      throw new IllegalArgumentException("The storage size value should be 1<->8");
+    
     ByteBuffer dbuf = ByteBuffer.allocate(4);
     dbuf.putInt(value);
-    return dbuf.array();
+    return ByteArrayUtils.trimLeft(dbuf.array(), 4-storageSize);
   }
   
   public static int byteArrayToInt(byte[] src) {
+    
     if(src.length < 4)
-      throw new RuntimeException("Unable convert a byte array into Integer: min length is 4 bytes");
+      src = ByteArrayUtils.padLeft(src, 4 - src.length);
     
     ByteBuffer wrapped = ByteBuffer.wrap(src); // big-endian by default
     return wrapped.getInt();
   }
   
   public static long byteArrayToLong(byte[] src) {
+    
     if(src.length < 8)
-      throw new RuntimeException("Unable convert a byte array into Long: min length is 8 bytes");
+      src = ByteArrayUtils.padLeft(src, 8 - src.length);
     
     ByteBuffer wrapped = ByteBuffer.wrap(src); // big-endian by default
     return wrapped.getLong();
   }
-
-
+  
 }
