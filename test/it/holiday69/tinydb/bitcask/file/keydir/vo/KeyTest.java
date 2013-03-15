@@ -49,7 +49,7 @@ public class KeyTest {
     
     Key result = new Key().fromString(src);
     assertEquals(result.getType(), Key.Type.STRING);
-    assertEquals(result.getValue(), "hello world");
+    assertEquals(result.keyValue(), "hello world");
     
     System.out.println(result.toByteArrayString());
   }
@@ -62,7 +62,7 @@ public class KeyTest {
     
     Key result = new Key().fromLong(src);
     assertEquals(result.getType(), Key.Type.LONG);
-    assertEquals(result.getValue(), 12345l);
+    assertEquals(result.keyValue(), 12345l);
     
     System.out.println(result.toByteArrayString());
   }
@@ -74,7 +74,7 @@ public class KeyTest {
     
     Key result = new Key().fromByteArray(src);
     assertEquals(result.getType(), Key.Type.STRING);
-    assertEquals(result.getValue(), "hi");
+    assertEquals(result.keyValue(), "hi");
     
     System.out.println(result.toByteArrayString());
   }
@@ -91,7 +91,7 @@ public class KeyTest {
     
     Key result = new Key().fromByteArray(bout.toByteArray());
     assertEquals(result.getType(), Key.Type.LONG);
-    assertEquals(result.getValue(), 123456l);
+    assertEquals(result.keyValue(), 123456l);
     
     System.out.println(result.toByteArrayString());
   }

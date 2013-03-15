@@ -9,7 +9,6 @@ import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
 import it.holiday69.tinydb.bitcask.file.keydir.vo.KeyRecord;
 import it.holiday69.tinydb.bitcask.file.utils.HessianUtils;
 import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
-import it.holiday69.tinydb.db.utils.SerialUtils;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.File;
 import java.io.FileInputStream;
@@ -65,7 +64,7 @@ public class DBFileParser {
         }
         
         if(_keyClass == null)
-          _keyClass = record.key.getValue().getClass();
+          _keyClass = record.key.keyValue().getClass();
         
         retMap.put(record.key, record.keyRecord);
       }

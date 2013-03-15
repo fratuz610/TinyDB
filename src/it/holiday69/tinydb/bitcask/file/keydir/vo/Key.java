@@ -18,6 +18,18 @@ public class Key implements Comparable<Key> {
   private Object _keyValue;
   private byte[] _byteArray;
   
+  public Key fromComparable(Comparable src) {
+    
+    if(src instanceof String)
+      return fromString((String) src);
+    else if(src instanceof Double)
+      return fromDouble((Double) src);
+    else if(src instanceof Long)
+      return fromLong((Long) src);
+    else
+      throw new RuntimeException("The only key type supported is: String/Long/Double");
+  }
+  
   public Key fromString(String src) {
     
     _keyValue = src;
@@ -68,7 +80,7 @@ public class Key implements Comparable<Key> {
     return ret;
   }
   
-  public Comparable getValue() { return (Comparable) _keyValue; }
+  public Comparable keyValue() { return (Comparable) _keyValue; }
 
   @Override
   public int hashCode() {
@@ -103,7 +115,7 @@ public class Key implements Comparable<Key> {
 
   @Override
   public int compareTo(Key o) {
-    return getValue().compareTo(o.getValue());
+    return keyValue().compareTo(o.keyValue());
   }
   
 }

@@ -5,9 +5,7 @@
 
 package it.holiday69.tinydb.bitcask.file.utils;
 
-import it.holiday69.tinydb.bitcask.file.AppendManager;
 import it.holiday69.tinydb.db.utils.HashUtils;
-import it.holiday69.tinydb.utils.Base64;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.Arrays;

@@ -4,6 +4,7 @@
  */
 package it.holiday69.tinydb.bitcask;
 
+import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Date;
@@ -28,7 +29,6 @@ public class BitcaskTest {
       return "Message{" + "author=" + author + ", message=" + message + '}';
     }
     
-    
   }
   
   public static void main(String[] args) throws IOException, InterruptedException {
@@ -36,8 +36,7 @@ public class BitcaskTest {
     FileInputStream configFile = new FileInputStream("logging.properties");
     LogManager.getLogManager().readConfiguration(configFile);
     
-    Bitcask bitcask = new Bitcask(new BitcaskOptions()
-            .withDbName("hello-world")
+    Bitcask bitcask = new Bitcask("hello-world", new BitcaskOptions()
             .withCompactEvery(25, TimeUnit.SECONDS)
             .withRecordPerFile(10));
     
@@ -54,14 +53,14 @@ public class BitcaskTest {
         if(savedAuth == null)
           savedAuth = mess.author;
 
-        bitcask.addRecord(mess.author, mess);
-      }
+        bitcask.put(new Key().fromString(mess.author), mess);
+     }
 
-      Message retMess = bitcask.getRecord(savedAuth, Message.class);
+      Message retMess = (Message) bitcask.get(new Key().fromString(savedAuth));
 
-      _log.info("retMess: '" + retMess + "' waiting 30 secs");
+    _log.info("retMess: '" + retMess + "' waiting 30 secs");
 
-      Thread.sleep(30000);
+    Thread.sleep(30000);
     }
     
   }

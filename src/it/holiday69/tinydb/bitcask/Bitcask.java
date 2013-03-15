@@ -42,6 +42,7 @@ public class Bitcask implements SortedMap<Key, Object> {
   private final Logger _log = Logger.getLogger(Bitcask.class.getSimpleName());
   
   private File _dbFolder;
+  private String _dbName;
   private BitcaskOptions _options;
   
   private SortedMap<Key, KeyRecord> _keyRecordMap = new TreeMap<Key, KeyRecord>();
@@ -54,8 +55,9 @@ public class Bitcask implements SortedMap<Key, Object> {
   private final FileLockManager _fileLockManager = new FileLockManager();
   private final ScheduledExecutorService _compactExecutor = Executors.newSingleThreadScheduledExecutor();
   
-  public Bitcask(BitcaskOptions options) {
+  public Bitcask(String dbName, BitcaskOptions options) {
     
+    _dbName = dbName;
     _options = options;
     
     _dbFolder = new File(_options.dbFolder);
@@ -67,7 +69,7 @@ public class Bitcask implements SortedMap<Key, Object> {
     new ReadCompactDBTask().run();
         
     // we initialize the append && get manager
-    _appendManager = new AppendManager(_options, _fileLockManager);
+    _appendManager = new AppendManager(_dbName, _options, _fileLockManager);
     _getManager = new GetManager(_fileLockManager);
     
     // we add the shutdown hook to stop the read and compact db task
@@ -157,7 +159,16 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public Collection<Object> values() {
-    throw new UnsupportedOperationException("Not supported on this map, potentially dangerouns!");
+    
+    Set<Key> keySet = keySet();
+    
+    Collection<Object> retList = new LinkedList<Object>();
+    
+    for(Key key : keySet) {
+      retList.add(get(key));
+    }
+    
+    return retList;
   }
 
   @Override
@@ -237,12 +248,12 @@ public class Bitcask implements SortedMap<Key, Object> {
   @Override
   public Object put(Key key, Object value) {
     
-    if(key.getValue() instanceof String)
-      internalAddRecord(new Key().fromString((String) key.getValue()), KryoUtils.writeClassAndObject(value));
-    else if(key.getValue() instanceof Long)
-      internalAddRecord(new Key().fromLong((Long) key.getValue()), KryoUtils.writeClassAndObject(value));
-    else if(key.getValue() instanceof Double)
-      internalAddRecord(new Key().fromDouble((Double) key.getValue()), KryoUtils.writeClassAndObject(value));
+    if(key.keyValue() instanceof String)
+      internalAddRecord(new Key().fromString((String) key.keyValue()), KryoUtils.writeClassAndObject(value));
+    else if(key.keyValue() instanceof Long)
+      internalAddRecord(new Key().fromLong((Long) key.keyValue()), KryoUtils.writeClassAndObject(value));
+    else if(key.keyValue() instanceof Double)
+      internalAddRecord(new Key().fromDouble((Double) key.keyValue()), KryoUtils.writeClassAndObject(value));
     else
       throw new IllegalArgumentException("Supported key types are only String/Long/Double");
     
@@ -316,7 +327,7 @@ public class Bitcask implements SortedMap<Key, Object> {
         _log.info("ReadCompactDBTask START");
 
           // we scan the target folder
-        File[] dbFileList = DBFileUtils.getDBFileList(_dbFolder, _options.dbName);
+        File[] dbFileList = DBFileUtils.getDBFileList(_dbFolder, _dbName);
         
         List<File> workingFileList = new LinkedList<File>();
         for(File dbFile : dbFileList) {
@@ -327,7 +338,7 @@ public class Bitcask implements SortedMap<Key, Object> {
         _log.info("Retrieved " +workingFileList.size() + " db files");
 
         // if the hint file exists, we parse that first
-        File hintFile = DBFileUtils.getHintFile(_dbFolder, _options.dbName);
+        File hintFile = DBFileUtils.getHintFile(_dbFolder, _dbName);
 
         if(hintFile.exists()) {
           
@@ -366,7 +377,7 @@ public class Bitcask implements SortedMap<Key, Object> {
         }
         
         // we use the temp hint file location to output all new data
-        File tempHintFile = DBFileUtils.getTempHintFile(_dbFolder, _options.dbName);
+        File tempHintFile = DBFileUtils.getTempHintFile(_dbFolder, _dbName);
         
         // we generate the new hint file and get an update key->record map
         _keyToRecordMap = new HintFileWriter(hintFile, tempHintFile, _keyToRecordMap).writeTempHintFile();

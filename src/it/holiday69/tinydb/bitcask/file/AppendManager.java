@@ -24,6 +24,7 @@ public class AppendManager {
   private final Logger _log = Logger.getLogger(AppendManager.class.getSimpleName());
   
   private File _dbFolder;
+  private String _dbName;
   private File _currentFile;
   private FileOutputStream _currentFos;
   private Integer _currentFileNumber;
@@ -33,7 +34,9 @@ public class AppendManager {
   private BitcaskOptions _options;
   private FileLockManager _fileLockManager;
   
-  public AppendManager(BitcaskOptions options, FileLockManager fileLockManager) {
+  public AppendManager(String dbName, BitcaskOptions options, FileLockManager fileLockManager) {
+    
+    _dbName = dbName;
     _options = options;
     _fileLockManager = fileLockManager;
     
@@ -58,10 +61,10 @@ public class AppendManager {
         // we determine the max file number again
         _currentFileNumber = getMaxFileNumber()+1;
         
-        _currentFile = DBFileUtils.getDBFile(_dbFolder, _options.dbName, _currentFileNumber);
+        _currentFile = DBFileUtils.getDBFile(_dbFolder, _dbName, _currentFileNumber);
         
         if(_currentFile.exists()) {
-          _currentFile = DBFileUtils.getDBFile(_dbFolder, _options.dbName, _currentFileNumber+1);
+          _currentFile = DBFileUtils.getDBFile(_dbFolder, _dbName, _currentFileNumber+1);
           _currentFileNumber++;
         }
         
@@ -118,7 +121,7 @@ public class AppendManager {
   private int getMaxFileNumber() {
     
     // we scan the target folder
-    File[] dbFileList = DBFileUtils.getDBFileList(_dbFolder, _options.dbName);
+    File[] dbFileList = DBFileUtils.getDBFileList(_dbFolder, _dbName);
     
     int maxFileNumber = -1;
     
