@@ -17,10 +17,14 @@ import it.holiday69.tinydb.bitcask.lock.FileLockManager;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.Executors;
@@ -33,14 +37,14 @@ import java.util.logging.Logger;
  *
  * @author Stefano
  */
-public class Bitcask {
+public class Bitcask implements SortedMap<Key, Object> {
   
   private final Logger _log = Logger.getLogger(Bitcask.class.getSimpleName());
   
   private File _dbFolder;
   private BitcaskOptions _options;
   
-  private SortedMap<Key, KeyRecord> _sortedKeyRecordMap = new TreeMap<Key, KeyRecord>();
+  private SortedMap<Key, KeyRecord> _keyRecordMap = new TreeMap<Key, KeyRecord>();
   private Class<? extends Comparable> _keyClass;
   
   private final AppendManager _appendManager;
@@ -81,37 +85,168 @@ public class Bitcask {
     _compactExecutor.scheduleWithFixedDelay(new ReadCompactDBTask(), _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
   }
   
-  public void addRecord(String keyStr, Object obj) {
-    
-    if(_keyClass == null)
-      _keyClass = String.class;
-    
-    if(_keyClass != null && _keyClass != String.class)
-      throw new RuntimeException("You can only insert " + _keyClass + " keys into this db");
-    
-    internalAddRecord(new Key().fromString(keyStr), KryoUtils.writeClassAndObject(obj));
+  @Override
+  public Comparator<? super Key> comparator() {
+    _keyMapLock.readLock().lock();
+    try {
+      return _keyRecordMap.comparator();
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public SortedMap<Key, Object> subMap(Key fromKey, Key toKey) {
+    _keyMapLock.readLock().lock();
+    try {
+      return new TreeMap<Key, Object>(_keyRecordMap.subMap(fromKey, toKey));
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public SortedMap<Key, Object> headMap(Key toKey) {
+    _keyMapLock.readLock().lock();
+    try {
+      return new TreeMap<Key, Object>(_keyRecordMap.headMap(toKey));
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public SortedMap<Key, Object> tailMap(Key fromKey) {
+    _keyMapLock.readLock().lock();
+    try {
+      return new TreeMap<Key, Object>(_keyRecordMap.tailMap(fromKey));
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public Key firstKey() {
+    _keyMapLock.readLock().lock();
+    try {
+      return _keyRecordMap.firstKey();
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public Key lastKey() {
+    _keyMapLock.readLock().lock();
+    try {
+      return _keyRecordMap.lastKey();
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public Set<Key> keySet() {
+    _keyMapLock.readLock().lock();
+    try {
+      return new HashSet<Key>(_keyRecordMap.keySet());
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public Collection<Object> values() {
+    throw new UnsupportedOperationException("Not supported on this map, potentially dangerouns!");
+  }
+
+  @Override
+  public Set<Entry<Key, Object>> entrySet() {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public int size() {
+    _keyMapLock.readLock().lock();
+    try {
+      return _keyRecordMap.size();
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public boolean isEmpty() {
+    _keyMapLock.readLock().lock();
+    try {
+      return _keyRecordMap.isEmpty();
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public boolean containsKey(Object key) {
+    _keyMapLock.readLock().lock();
+    try {
+      return _keyRecordMap.containsKey(key);
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
+  }
+
+  @Override
+  public boolean containsValue(Object value) {
+    throw new UnsupportedOperationException("Not supported yet.");
+  }
+
+  @Override
+  public Object get(Object key) {
+    if(key instanceof String) {
+      byte[] rawRecord = internalGetRecord(new Key().fromString((String) key));
+      return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+    } else if(key instanceof Long) {
+      byte[] rawRecord = internalGetRecord(new Key().fromLong((Long) key));
+      return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+    } else if(key instanceof Double) {
+      byte[] rawRecord = internalGetRecord(new Key().fromDouble((Double) key));
+    return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+    } else
+      throw new IllegalArgumentException("Supported key types are only String/Long/Double");
   }
   
-  public void addRecord(long keyLong, Object obj) {
+  private byte[] internalGetRecord(Key key) {
     
-    if(_keyClass == null)
-      _keyClass = long.class;
+    _keyMapLock.readLock().lock();
     
-    if(_keyClass != null && _keyClass != long.class)
-      throw new RuntimeException("You can only insert " + _keyClass + " keys into this db");
-    
-    internalAddRecord(new Key().fromLong(keyLong), KryoUtils.writeClassAndObject(obj));
+    try {
+      KeyRecord keyRecord = _keyRecordMap.get(key);
+
+      if(keyRecord == null)
+        return null;
+
+      _log.info("KeyRecord to try: " + keyRecord);
+
+      return _getManager.retrieveRecord(keyRecord);
+    } finally {
+      _keyMapLock.readLock().unlock();
+    }
   }
   
-  public void addRecord(double keyDouble, Object obj) {
+
+  @Override
+  public Object put(Key key, Object value) {
     
-    if(_keyClass == null)
-      _keyClass = double.class;
+    if(key.getValue() instanceof String)
+      internalAddRecord(new Key().fromString((String) key.getValue()), KryoUtils.writeClassAndObject(value));
+    else if(key.getValue() instanceof Long)
+      internalAddRecord(new Key().fromLong((Long) key.getValue()), KryoUtils.writeClassAndObject(value));
+    else if(key.getValue() instanceof Double)
+      internalAddRecord(new Key().fromDouble((Double) key.getValue()), KryoUtils.writeClassAndObject(value));
+    else
+      throw new IllegalArgumentException("Supported key types are only String/Long/Double");
     
-    if(_keyClass != null && _keyClass != double.class)
-      throw new RuntimeException("You can only insert " + _keyClass + " keys into this db");
-    
-    internalAddRecord(new Key().fromDouble(keyDouble), KryoUtils.writeClassAndObject(obj));
+    return value;
   }
   
   private void internalAddRecord(Key key, byte[] data) {
@@ -131,42 +266,41 @@ public class Bitcask {
     
     _keyMapLock.writeLock().lock();
     try {
-      _sortedKeyRecordMap.put(key, keyRecord);
+      _keyRecordMap.put(key, keyRecord);
     } finally {
       _keyMapLock.writeLock().unlock();
     }
   }
   
-  public <T> T getRecord(String strKey, Class<T> classOfT) {
-    byte[] rawRecord = internalGetRecord(new Key().fromString(strKey));
-    return (T) KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
-  }
-  
-  public <T> T getRecord(long longKey, Class<T> classOfT) {
-    byte[] rawRecord = internalGetRecord(new Key().fromLong(longKey));
-    return (T) KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
-  }
-  
-  public <T> T getRecord(double doubleKey, Class<T> classOfT) {
-    byte[] rawRecord = internalGetRecord(new Key().fromDouble(doubleKey));
-    return (T) KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
-  }
-  
-  private byte[] internalGetRecord(Key key) {
+  @Override
+  public Object remove(Object key) {
     
-    _keyMapLock.readLock().lock();
-    
+    _keyMapLock.writeLock().lock();
     try {
-      KeyRecord keyRecord = _sortedKeyRecordMap.get(key);
-
-      if(keyRecord == null)
-        return null;
-
-      _log.info("KeyRecord to try: " + keyRecord);
-
-      return _getManager.retrieveRecord(keyRecord);
+      Object obj = get(key);
+      _keyRecordMap.remove(key);
+      return obj;
     } finally {
-      _keyMapLock.readLock().unlock();
+      _keyMapLock.writeLock().unlock();
+    }
+  }
+
+  @Override
+  public void putAll(Map<? extends Key, ? extends Object> m) {
+    
+    // dumb implementation
+    for(Key key : m.keySet()) {
+      put(key, m.get(key));
+    }
+  }
+
+  @Override
+  public void clear() {
+    _keyMapLock.writeLock().lock();
+    try {
+      _keyRecordMap.clear();
+    } finally {
+      _keyMapLock.writeLock().unlock();
     }
   }
 
@@ -241,7 +375,7 @@ public class Bitcask {
         _keyMapLock.writeLock().lock();
         try {
           // we overwrite the old mappings with the new
-          _sortedKeyRecordMap.putAll(_keyToRecordMap);
+          _keyRecordMap.putAll(_keyToRecordMap);
           
           // we delete the old hint file
           hintFile.delete();
