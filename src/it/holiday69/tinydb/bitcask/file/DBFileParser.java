@@ -5,8 +5,8 @@
 package it.holiday69.tinydb.bitcask.file;
 
 import it.holiday69.tinydb.bitcask.Bitcask;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.KeyRecord;
+import it.holiday69.tinydb.bitcask.file.vo.Key;
+import it.holiday69.tinydb.bitcask.file.vo.KeyRecord;
 import it.holiday69.tinydb.bitcask.file.utils.HessianUtils;
 import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
 import it.holiday69.tinydb.utils.ExceptionUtils;

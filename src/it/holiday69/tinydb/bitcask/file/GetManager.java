@@ -4,7 +4,7 @@
  */
 package it.holiday69.tinydb.bitcask.file;
 
-import it.holiday69.tinydb.bitcask.file.keydir.vo.KeyRecord;
+import it.holiday69.tinydb.bitcask.file.vo.KeyRecord;
 import it.holiday69.tinydb.bitcask.lock.FileLockManager;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.FileInputStream;

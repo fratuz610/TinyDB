@@ -4,7 +4,8 @@
  */
 package it.holiday69.tinydb.bitcask.file.keydir.vo;
 
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Key.Type;
+import it.holiday69.tinydb.bitcask.file.vo.Key;
+import it.holiday69.tinydb.bitcask.file.vo.Key.Type;
 import it.holiday69.tinydb.db.utils.SerialUtils;
 import java.io.ByteArrayOutputStream;
 import org.junit.After;

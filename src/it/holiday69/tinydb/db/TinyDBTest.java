@@ -5,12 +5,19 @@
 package it.holiday69.tinydb.db;
 
 import it.holiday69.dataservice.DataService;
+import it.holiday69.dataservice.query.OrderType;
+import it.holiday69.dataservice.query.Query;
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import it.holiday69.tinydb.db.annotations.Id;
 import it.holiday69.tinydb.db.annotations.Indexed;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
 
 /**
  *
@@ -23,31 +30,45 @@ public class TinyDBTest {
     public String author;
     public String message;
     @Indexed public long timestamp = new Date().getTime();
-
+    
     @Override
     public String toString() {
       return "Message{" + "messageId=" + messageId + ", author=" + author + ", message=" + message + ", timestamp=" + timestamp + '}';
     }
   }
   
-  public static void main(String[] args) {
+  private static final Logger _log = Logger.getLogger(TinyDBTest.class.getSimpleName());
+  
+  public static void main(String[] args) throws IOException {
     
-    DataService dataService = new TinyDBDataService(new BitcaskOptions()
+    FileInputStream configFile = new FileInputStream("logging.properties");
+    LogManager.getLogManager().readConfiguration(configFile);
+        
+    TinyDBDataService dataService = new TinyDBDataService(new BitcaskOptions()
             .withCompactEvery(25, TimeUnit.SECONDS)
             .withRecordPerFile(15));
     
-    for(int i = 0; i < 200; i++) {
+    /*
+    _log.info("Inserting messages: ");
+    for(int i = 0; i < 20; i++) {
       Message mess = new Message();
       mess.author = "Myself " + Math.random()*new Date().getTime();
       mess.message = "Message very nice " + Math.random()*new Date().getTime();
       dataService.put(mess);
     }
+    _log.info("Insertion complete! retrieving messages");
+    */
+    List<Message> messList = dataService.getList(new Query()
+            .filter("timestamp >=", 1363563918223l)
+            .orderBy("timestamp", OrderType.DESCENDING), Message.class);
     
-    List<Message> messList = dataService.getList(Message.class);
+    _log.info("Message list size: " + messList.size());
     
     for(Message mess : messList) {
-      System.out.println("Message: " + mess);
+      _log.info("Message: " + mess);
     }
+    
+    dataService.shutdown(true);
     
   }
 }

@@ -6,7 +6,7 @@ package it.holiday69.tinydb.db;
 
 import it.holiday69.tinydb.db.annotations.Id;
 import it.holiday69.tinydb.db.annotations.Indexed;
-import it.holiday69.tinydb.jdbm.vo.ClassInfo;
+import it.holiday69.tinydb.db.vo.ClassInfo;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.logging.Logger;
@@ -105,6 +105,8 @@ public class TinyDBMapper {
       classInfo.idFieldType = ClassInfo.IDFieldType.STRING;
     } else if(idField.getType() == long.class || idField.getType() == Long.class) {
       classInfo.idFieldType = ClassInfo.IDFieldType.LONG;
+    } else if(idField.getType() == double.class || idField.getType() == Double.class) {
+      classInfo.idFieldType = ClassInfo.IDFieldType.DOUBLE;
     } else {
       throw new RuntimeException("Field " + classInfo.idFieldName  + " for class " + clazz.getName() + " is marked as @Id but its type is neither String or Long/long");
     }

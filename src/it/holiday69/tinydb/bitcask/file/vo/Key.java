@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package it.holiday69.tinydb.bitcask.file.keydir.vo;
+package it.holiday69.tinydb.bitcask.file.vo;
 
 import it.holiday69.tinydb.bitcask.file.utils.HessianUtils;
 import java.io.ByteArrayInputStream;
@@ -19,6 +19,9 @@ public class Key implements Comparable<Key> {
   private byte[] _byteArray;
   
   public Key fromComparable(Comparable src) {
+    
+    if(src == null)
+      throw new NullPointerException("Null key provided!!");
     
     if(src instanceof String)
       return fromString((String) src);

@@ -25,16 +25,18 @@ public class BitcaskManager {
     _options = options;
   }
   
-  public synchronized Bitcask getEntityDB(String entityName) {
+  public Bitcask getEntityDB(String entityName) {
     
-    if(!_classDBMap.containsKey(entityName))
-      _classDBMap.put(entityName, new Bitcask(entityName, _options));
+    synchronized(_classDBMap) {
+      if(!_classDBMap.containsKey(entityName))
+        _classDBMap.put(entityName, new Bitcask(entityName, _options));
 
-    return _classDBMap.get(entityName);
+      return _classDBMap.get(entityName);
+    }
   }
   
   public Bitcask getEntityDB(Class<?> entityClass) {
-    return getEntityDB(entityClass.getClass().getSimpleName());
+    return getEntityDB(entityClass.getSimpleName());
   }
   
   public Bitcask getIndexDB(String entityName, String indexName) {
@@ -42,8 +44,16 @@ public class BitcaskManager {
   }
   
   public Bitcask getIndexDB(Class<?> entityClass, String indexName) {
-    return getEntityDB(entityClass.getClass().getSimpleName() + "-" + indexName);
+    return getEntityDB(entityClass.getSimpleName() + "-" + indexName);
   }
   
+  public void shutdown(boolean compact) {
+    synchronized(_classDBMap) {
+      for(String dbName : _classDBMap.keySet()) {
+        _log.info("Shutting down: '" + dbName + "'");
+        _classDBMap.get(dbName).shutdown(compact);
+      }
+    }
+  }
   
 }

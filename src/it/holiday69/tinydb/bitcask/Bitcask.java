@@ -8,9 +8,9 @@ import it.holiday69.tinydb.bitcask.file.AppendManager;
 import it.holiday69.tinydb.bitcask.file.DBFileParser;
 import it.holiday69.tinydb.bitcask.file.GetManager;
 import it.holiday69.tinydb.bitcask.file.HintFileWriter;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.AppendInfo;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.KeyRecord;
+import it.holiday69.tinydb.bitcask.file.vo.AppendInfo;
+import it.holiday69.tinydb.bitcask.file.vo.Key;
+import it.holiday69.tinydb.bitcask.file.vo.KeyRecord;
 import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
 import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
 import it.holiday69.tinydb.bitcask.lock.FileLockManager;
@@ -29,6 +29,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
@@ -54,6 +56,7 @@ public class Bitcask implements SortedMap<Key, Object> {
   private final ReadWriteLock _keyMapLock = new ReentrantReadWriteLock();
   private final FileLockManager _fileLockManager = new FileLockManager();
   private final ScheduledExecutorService _compactExecutor = Executors.newSingleThreadScheduledExecutor();
+  private final ReadCompactDBTask _readCompactDBTask = new ReadCompactDBTask();
   
   public Bitcask(String dbName, BitcaskOptions options) {
     
@@ -66,7 +69,7 @@ public class Bitcask implements SortedMap<Key, Object> {
       throw new RuntimeException("DB folder: " + _dbFolder + " doesn't exist and cannot be created");
     
     // we run the read compact task at startup
-    new ReadCompactDBTask().run();
+    _readCompactDBTask.run();
         
     // we initialize the append && get manager
     _appendManager = new AppendManager(_dbName, _options, _fileLockManager);
@@ -77,14 +80,13 @@ public class Bitcask implements SortedMap<Key, Object> {
 
       @Override
       public void run() {
-        System.out.println("Shutting down compact executor");
         _log.info("Shutting down compact executor");
         _compactExecutor.shutdownNow();
       }
     }));
     
     // we schedule the read compact db task
-    _compactExecutor.scheduleWithFixedDelay(new ReadCompactDBTask(), _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
+    _compactExecutor.scheduleWithFixedDelay(_readCompactDBTask, _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
   }
   
   @Override
@@ -100,38 +102,66 @@ public class Bitcask implements SortedMap<Key, Object> {
   @Override
   public SortedMap<Key, Object> subMap(Key fromKey, Key toKey) {
     _keyMapLock.readLock().lock();
+    
+    TreeMap<Key, Object> ret = new TreeMap<Key, Object>();
+    TreeMap<Key, Object> tmp;
     try {
-      return new TreeMap<Key, Object>(_keyRecordMap.subMap(fromKey, toKey));
+      tmp = new TreeMap<Key, Object>(_keyRecordMap.subMap(fromKey, toKey));
     } finally {
       _keyMapLock.readLock().unlock();
     }
+    
+    for(Key key : tmp.keySet())
+      ret.put(key, get(key));
+    
+    return ret;
   }
 
   @Override
   public SortedMap<Key, Object> headMap(Key toKey) {
     _keyMapLock.readLock().lock();
+    
+    TreeMap<Key, Object> ret = new TreeMap<Key, Object>();
+    TreeMap<Key, Object> tmp;
     try {
-      return new TreeMap<Key, Object>(_keyRecordMap.headMap(toKey));
+      tmp = new TreeMap<Key, Object>(_keyRecordMap.headMap(toKey));
     } finally {
       _keyMapLock.readLock().unlock();
     }
+    
+    for(Key key : tmp.keySet())
+      ret.put(key, get(key));
+    
+    return ret;
   }
 
   @Override
   public SortedMap<Key, Object> tailMap(Key fromKey) {
     _keyMapLock.readLock().lock();
+    
+    TreeMap<Key, Object> ret = new TreeMap<Key, Object>();
+    TreeMap<Key, Object> tmp;
     try {
-      return new TreeMap<Key, Object>(_keyRecordMap.tailMap(fromKey));
+      tmp = new TreeMap<Key, Object>(_keyRecordMap.tailMap(fromKey));
     } finally {
       _keyMapLock.readLock().unlock();
     }
+    
+    for(Key key : tmp.keySet())
+      ret.put(key, get(key));
+    
+    return ret;
   }
 
   @Override
   public Key firstKey() {
     _keyMapLock.readLock().lock();
     try {
-      return _keyRecordMap.firstKey();
+      
+      if(!_keyRecordMap.isEmpty())
+        return _keyRecordMap.firstKey();
+      else
+        return null;
     } finally {
       _keyMapLock.readLock().unlock();
     }
@@ -141,7 +171,10 @@ public class Bitcask implements SortedMap<Key, Object> {
   public Key lastKey() {
     _keyMapLock.readLock().lock();
     try {
-      return _keyRecordMap.lastKey();
+      if(!_keyRecordMap.isEmpty())
+        return _keyRecordMap.lastKey();
+      else
+        return null;
     } finally {
       _keyMapLock.readLock().unlock();
     }
@@ -213,17 +246,28 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public Object get(Object key) {
+    
+    if(key == null)
+      throw new NullPointerException("Null key provided!!");
+    
     if(key instanceof String) {
       byte[] rawRecord = internalGetRecord(new Key().fromString((String) key));
+      if(rawRecord == null) return null;
       return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
     } else if(key instanceof Long) {
       byte[] rawRecord = internalGetRecord(new Key().fromLong((Long) key));
+      if(rawRecord == null) return null;
       return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
     } else if(key instanceof Double) {
       byte[] rawRecord = internalGetRecord(new Key().fromDouble((Double) key));
-    return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+      if(rawRecord == null) return null;
+      return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+    } else if(key instanceof Key) {
+      byte[] rawRecord = internalGetRecord((Key) key);
+      if(rawRecord == null) return null;
+      return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
     } else
-      throw new IllegalArgumentException("Supported key types are only String/Long/Double");
+      throw new IllegalArgumentException("Supported key types are only String/Long/Double: " + key.getClass() + " provided");
   }
   
   private byte[] internalGetRecord(Key key) {
@@ -236,7 +280,7 @@ public class Bitcask implements SortedMap<Key, Object> {
       if(keyRecord == null)
         return null;
 
-      _log.info("KeyRecord to try: " + keyRecord);
+      _log.fine("KeyRecord to try: " + keyRecord);
 
       return _getManager.retrieveRecord(keyRecord);
     } finally {
@@ -273,7 +317,7 @@ public class Bitcask implements SortedMap<Key, Object> {
             .withValuePosition(appendInfo.valuePosition)
             .withValueSize(appendInfo.valueSize);
 
-    _log.info("setting " + key + " linked to " + keyRecord);
+    _log.fine("setting " + key + " linked to " + keyRecord);
     
     _keyMapLock.writeLock().lock();
     try {
@@ -314,9 +358,28 @@ public class Bitcask implements SortedMap<Key, Object> {
       _keyMapLock.writeLock().unlock();
     }
   }
+  
+  public void shutdown(boolean compact) {
+    _log.fine("Shutting down bitcask: '" + _dbName + "'");
+    
+    _compactExecutor.shutdownNow();
+    
+    if(compact) {
+      if(_readCompactDBTask.isRunning()) {
+        _log.fine("Final DB compacting not necessary (one already in progress)");
+      } else {
+        _log.fine("Final DB compacting");
+        _readCompactDBTask.run();
+      } 
+    }
+    
+    _log.fine("Shutdown complete");
+  }
 
   
   public class ReadCompactDBTask implements Runnable {
+    
+    private boolean _isRunning = false;
 
     private Map<Key, KeyRecord> _keyToRecordMap = new HashMap<Key, KeyRecord>();
     
@@ -325,6 +388,8 @@ public class Bitcask implements SortedMap<Key, Object> {
       
       try {
         _log.info("ReadCompactDBTask START");
+        
+        _isRunning = true;
 
           // we scan the target folder
         File[] dbFileList = DBFileUtils.getDBFileList(_dbFolder, _dbName);
@@ -412,13 +477,16 @@ public class Bitcask implements SortedMap<Key, Object> {
           }
             
         }
-      
         _log.info("ReadCompactDBTask END");
       } catch(Throwable th) {
         _log.warning("Exception while compacting db: " + ExceptionUtils.getFullExceptionInfo(th));
-      } 
+      } finally {
+        _isRunning = false;
+      }
     
     }
+    
+    public boolean isRunning() { return _isRunning; } 
     
     
   }

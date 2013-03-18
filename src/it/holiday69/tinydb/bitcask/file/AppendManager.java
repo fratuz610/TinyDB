@@ -5,9 +5,9 @@
 package it.holiday69.tinydb.bitcask.file;
 
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.AppendInfo;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Record;
+import it.holiday69.tinydb.bitcask.file.vo.AppendInfo;
+import it.holiday69.tinydb.bitcask.file.vo.Key;
+import it.holiday69.tinydb.bitcask.file.vo.Record;
 import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
 import it.holiday69.tinydb.bitcask.lock.FileLockManager;
 import java.io.File;
@@ -97,11 +97,11 @@ public class AppendManager {
       _currentFilePos += record.toByteArray().length;
       _currentRecordNumber++;
       
-      _log.info("Appended record with info " + appendInfo);
+      _log.fine("Appended record with info " + appendInfo);
       
       if(_currentRecordNumber >= _options.recordPerFile) {
         
-        _log.info("Reached the limit of " + _options.recordPerFile + " creating a new file: " + (_currentFileNumber+1));
+        _log.fine("Reached the limit of " + _options.recordPerFile + " creating a new file: " + (_currentFileNumber+1));
          
         // we move to another file
         _currentFos.close();

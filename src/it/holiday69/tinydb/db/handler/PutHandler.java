@@ -5,10 +5,10 @@
 package it.holiday69.tinydb.db.handler;
 
 import it.holiday69.tinydb.bitcask.Bitcask;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
+import it.holiday69.tinydb.bitcask.file.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
-import it.holiday69.tinydb.jdbm.vo.ClassInfo;
+import it.holiday69.tinydb.db.vo.ClassInfo;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 
@@ -38,9 +38,10 @@ public class PutHandler {
     Bitcask dataTree = _bitcaskManager.getEntityDB(newObj.getClass());
     
     // checks if the id field is a long with auto increment (automatic if value is zero or null)
-    if(entityKeyVal != null && entityKeyVal instanceof Long && (Long) entityKeyVal == 0) {
+    if(entityKeyVal == null && classInfo.idFieldType == ClassInfo.IDFieldType.LONG) {
+      
       Key lastKey = dataTree.lastKey();
-
+      
       if(lastKey == null)
         entityKeyVal = 1l;
       else
@@ -49,10 +50,12 @@ public class PutHandler {
       _dbMapper.setIDFieldValue(newObj, entityKeyVal);
     }
     
-    // updates the data tree
-    dataTree.put(new Key().fromComparable(entityKeyVal), newObj);
+    Key primaryKey = new Key().fromComparable(entityKeyVal);
     
-    //log.info("Persisting object : " + newObj);
+    // updates the data tree
+    dataTree.put(primaryKey, newObj);
+    
+    log.fine("Persisting object : " + newObj);
     
     // updates all the index trees
     for(String indexedFieldName : classInfo.indexedFieldNameList) {
@@ -64,13 +67,13 @@ public class PutHandler {
       if(!indexTreeMap.containsKey(indexKey))
         indexTreeMap.put(indexKey, new TreeSet<Key>());
       
-      TreeSet<Key> linkedKeyList = (TreeSet<Key>) indexTreeMap.get(indexKey);
+      TreeSet<Key> linkedKeySet = (TreeSet<Key>) indexTreeMap.get(indexKey);
       
-      //log.info("Analyzing indexedField: " + indexedFieldName + " => "+DBHelper.getFieldValue(newObj, indexedFieldName)+" cardinality so far: " + linkedKeyList.size());
+      log.fine("Analyzing indexedField: '" + indexedFieldName + "' => "+TinyDBMapper.getFieldValue(newObj, indexedFieldName)+" cardinality so far: " + linkedKeySet.size());
       
-      linkedKeyList.add(new Key().fromComparable(entityKeyVal));
+      linkedKeySet.add(primaryKey);
       
-      indexTreeMap.put(indexKey, new TreeSet<Key>(linkedKeyList));
+      indexTreeMap.put(indexKey, new TreeSet<Key>(linkedKeySet));
     }
     
   }

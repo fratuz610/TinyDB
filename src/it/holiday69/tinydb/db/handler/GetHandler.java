@@ -9,10 +9,10 @@ import it.holiday69.dataservice.query.OrderFilter;
 import it.holiday69.dataservice.query.OrderType;
 import it.holiday69.dataservice.query.Query;
 import it.holiday69.tinydb.bitcask.Bitcask;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
+import it.holiday69.tinydb.bitcask.file.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
-import it.holiday69.tinydb.jdbm.vo.ClassInfo;
+import it.holiday69.tinydb.db.vo.ClassInfo;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -22,7 +22,7 @@ import java.util.logging.Logger;
  */
 public class GetHandler {
   
-  private final Logger log = Logger.getLogger(GetHandler.class.getSimpleName());
+  private final Logger _log = Logger.getLogger(GetHandler.class.getSimpleName());
   
   private final BitcaskManager _bitcaskManager;
   private final TinyDBMapper _dbMapper;
@@ -70,7 +70,7 @@ public class GetHandler {
       if(value != null)
         return value;
       else
-        log.warning("There is no value for data index: " + dataKey);
+        _log.warning("GetHandler:getFromQuery: There is no value for data index: " + dataKey);
     }
     return null;
   }
@@ -88,7 +88,7 @@ public class GetHandler {
       if(value != null)
         finalRetList.add(value);
       else
-        log.warning("There is no value for data index: " + dataKey);
+        _log.warning("GetHandler:getListFromQuery: There is no value for data index: " + dataKey);
     }
     
     return finalRetList;
@@ -99,12 +99,20 @@ public class GetHandler {
     List<Key> finalKeyList = new LinkedList<Key>();
     
     // we apply field filters
-    for(FieldFilter fieldFilter : query.getFieldFilterList()) {
+    if(!query.getFieldFilterList().isEmpty()) {
       
-      if(finalKeyList.isEmpty())
-        finalKeyList.addAll(applyFilter(fieldFilter, classOfT));
-      else
-        finalKeyList.retainAll(applyFilter(fieldFilter, classOfT));
+      // we apply the filters
+      for(FieldFilter fieldFilter : query.getFieldFilterList()) {
+
+        if(finalKeyList.isEmpty())
+          finalKeyList.addAll(applyFilter(fieldFilter, classOfT));
+        else
+          finalKeyList.retainAll(applyFilter(fieldFilter, classOfT));
+      }
+    } else {
+      
+      // no filters to apply, get all entities
+      finalKeyList.addAll(_bitcaskManager.getEntityDB(classOfT).keySet());
     }
         
     if(query.getOrderFilterList().size() > 1)
@@ -125,50 +133,96 @@ public class GetHandler {
   }
   
   private <T> Set<Key> applyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
-    
+
     ClassInfo classInfo = _dbMapper.getClassInfo(classOfT);
     
-    Set<Key> extractKeyList = new TreeSet<Key>();
+    if(fieldFilter.getFieldName().equals(classInfo.idFieldName))
+      return applyPrimaryKeyFilter(fieldFilter, classOfT);
+    else
+      return applyFieldFilter(fieldFilter, classOfT);
+  }
+  
+  private <T> Set<Key> applyFieldFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+    
+    ClassInfo classInfo = _dbMapper.getClassInfo(classOfT);
     
     // we make sure we don't query for fields that are not indexed
     if(!classInfo.indexedFieldNameList.contains(fieldFilter.getFieldName()))
       throw new RuntimeException("The field: '" + fieldFilter.getFieldName() + "' is not indexed and cannot be used in a query");
     
+    Set<Key> extractKeyList = new TreeSet<Key>();
+      
+    Bitcask fieldIndexDB = _bitcaskManager.getIndexDB(classOfT, fieldFilter.getFieldName());
+    
     Key fieldValueKey = new Key().fromComparable((Comparable) fieldFilter.getFieldValue());
     
-    Bitcask indexDB = _bitcaskManager.getIndexDB(classOfT, fieldFilter.getFieldName());
-    
     SortedMap<Key,Object> subsetIndexTreeMap = new TreeMap<Key, Object>();
-   
+    
     boolean inclusive = false;
     switch(fieldFilter.getFieldFilterType()) {
       case EQUAL: 
         inclusive = true;
         break;
       case GREATER_THAN:
-        subsetIndexTreeMap = indexDB.tailMap(fieldValueKey);
+        subsetIndexTreeMap.putAll(fieldIndexDB.tailMap(fieldValueKey));
         subsetIndexTreeMap.remove(fieldValueKey);
         break;
       case GREATER_THAN_INC:
         inclusive = true;
-        subsetIndexTreeMap = indexDB.tailMap(fieldValueKey);
+        subsetIndexTreeMap.putAll(fieldIndexDB.tailMap(fieldValueKey));
         break;
       case LOWER_THAN:
-        subsetIndexTreeMap = indexDB.headMap(fieldValueKey);
+        subsetIndexTreeMap.putAll(fieldIndexDB.headMap(fieldValueKey));
         break;
       case LOWER_THAN_INC:
         inclusive = true;
-        subsetIndexTreeMap = indexDB.headMap(fieldValueKey);
+        subsetIndexTreeMap.putAll(fieldIndexDB.headMap(fieldValueKey));
         break;
     }
     
     // flattens the structure
     for(Key key : subsetIndexTreeMap.keySet())
       extractKeyList.addAll((TreeSet<Key>) subsetIndexTreeMap.get(key));
+
+    // adds the inclusive members if necessary
+    if(inclusive && fieldIndexDB.containsKey(fieldValueKey))
+      extractKeyList.addAll((TreeSet<Key>) fieldIndexDB.get(fieldValueKey));
+      
+    return extractKeyList;
+  }
+  
+  private <T> Set<Key> applyPrimaryKeyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+    
+    Set<Key> extractKeyList = new TreeSet<Key>();
+    
+    Bitcask indexDB = _bitcaskManager.getEntityDB(classOfT);
+    
+    Key fieldValueKey = new Key().fromComparable((Comparable) fieldFilter.getFieldValue());
+    
+    boolean inclusive = false;
+    switch(fieldFilter.getFieldFilterType()) {
+      case EQUAL: 
+        inclusive = true;
+        break;
+      case GREATER_THAN:
+        extractKeyList.addAll(indexDB.tailMap(fieldValueKey).keySet());
+        break;
+      case GREATER_THAN_INC:
+        inclusive = true;
+        extractKeyList.addAll(indexDB.tailMap(fieldValueKey).keySet());
+        break;
+      case LOWER_THAN:
+        extractKeyList.addAll(indexDB.headMap(fieldValueKey).keySet());
+        break;
+      case LOWER_THAN_INC:
+        inclusive = true;
+        extractKeyList.addAll(indexDB.headMap(fieldValueKey).keySet());
+        break;
+    }
     
     // adds the inclusive members if necessary
     if(inclusive && indexDB.containsKey(fieldValueKey))
-      extractKeyList.addAll((TreeSet<Key>) indexDB.get(fieldValueKey));
+      extractKeyList.add(fieldValueKey);
     
     return extractKeyList;
   }
@@ -180,25 +234,40 @@ public class GetHandler {
     
     List<Key> extractKeyList = new LinkedList<Key>();
     
-    // we make sure we don't order for fields that are NOT indexed
-    if(!classInfo.indexedFieldNameList.contains(orderFilter.getFieldName()))
-      throw new RuntimeException("The field: '" + orderFilter.getFieldName() + "' is not indexed and cannot be used in a query");
-    
-    Bitcask indexTreeMap = _bitcaskManager.getIndexDB(classOfT, orderFilter.getFieldName());
-    
-    // we flatten the index structure
-    for(Object tempTreeSetObj : indexTreeMap.values()) {
-      TreeSet<Key> tempTreeSet = (TreeSet<Key>) tempTreeSetObj;
-      extractKeyList.addAll(tempTreeSet);
+    // we check if the order is on the primary key
+    if(classInfo.idFieldName.equals(orderFilter.getFieldName())) {
+      
+      _log.fine("Imposing order by primary key: " + classInfo.idFieldName);
+      
+      // key ordering
+      extractKeyList.addAll(filteredKeyList);
+      
+    } else {
+      // we check if the order is on the any field
+      // we make sure we don't order for fields that are NOT indexed
+      if(!classInfo.indexedFieldNameList.contains(orderFilter.getFieldName()))
+        throw new RuntimeException("The field: '" + orderFilter.getFieldName() + "' is not indexed and cannot be used in a query");
+
+      _log.fine("Imposing order by field: " + orderFilter.getFieldName());
+      
+      Bitcask indexTreeMap = _bitcaskManager.getIndexDB(classOfT, orderFilter.getFieldName());
+
+      // we flatten the index structure
+      for(Object tempTreeSetObj : indexTreeMap.values()) {
+        TreeSet<Key> tempTreeSet = (TreeSet<Key>) tempTreeSetObj;
+        extractKeyList.retainAll(filteredKeyList);
+        extractKeyList.addAll(tempTreeSet);
+      }
+      
+      _log.fine("After imposing order on "+orderFilter.getFieldName()+" extractKeyList has " + extractKeyList.size() + " elements");
     }
     
-    extractKeyList.retainAll(filteredKeyList);
+    Collections.sort(extractKeyList);
     
     if(orderFilter.getOrderType() == OrderType.DESCENDING)
       Collections.reverse(extractKeyList);
     
     return extractKeyList;
-    
   }
   
   public <T> long getResultSetSize(Class<T> classOfT) {

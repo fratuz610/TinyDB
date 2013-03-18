@@ -6,10 +6,10 @@ package it.holiday69.tinydb.db.handler;
 
 
 import it.holiday69.tinydb.bitcask.Bitcask;
-import it.holiday69.tinydb.bitcask.file.keydir.vo.Key;
+import it.holiday69.tinydb.bitcask.file.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
-import it.holiday69.tinydb.jdbm.vo.ClassInfo;
+import it.holiday69.tinydb.db.vo.ClassInfo;
 import java.util.NavigableMap;
 import java.util.SortedMap;
 import java.util.TreeSet;
