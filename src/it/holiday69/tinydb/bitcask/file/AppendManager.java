@@ -42,7 +42,7 @@ public class AppendManager {
     
     _dbFolder = new File(options.dbFolder);
     
-    _log.info("Db Folder " + _dbFolder);
+    _log.fine("Db Folder " + _dbFolder);
     
     if(!_dbFolder.exists() && !_dbFolder.mkdir())
       throw new RuntimeException("DB folder: " + _dbFolder + " doesn't exist and cannot be created");

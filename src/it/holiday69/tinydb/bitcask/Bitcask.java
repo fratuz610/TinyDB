@@ -8,11 +8,11 @@ import it.holiday69.tinydb.bitcask.file.AppendManager;
 import it.holiday69.tinydb.bitcask.file.DBFileParser;
 import it.holiday69.tinydb.bitcask.file.GetManager;
 import it.holiday69.tinydb.bitcask.file.HintFileWriter;
+import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
+import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
 import it.holiday69.tinydb.bitcask.file.vo.AppendInfo;
 import it.holiday69.tinydb.bitcask.file.vo.Key;
 import it.holiday69.tinydb.bitcask.file.vo.KeyRecord;
-import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
-import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
 import it.holiday69.tinydb.bitcask.lock.FileLockManager;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.ByteArrayInputStream;
@@ -20,17 +20,15 @@ import java.io.File;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
@@ -84,6 +82,8 @@ public class Bitcask implements SortedMap<Key, Object> {
         _compactExecutor.shutdownNow();
       }
     }));
+    
+    _log.info("Bitcask '"+dbName+"' started");
     
     // we schedule the read compact db task
     _compactExecutor.scheduleWithFixedDelay(_readCompactDBTask, _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
@@ -184,7 +184,7 @@ public class Bitcask implements SortedMap<Key, Object> {
   public Set<Key> keySet() {
     _keyMapLock.readLock().lock();
     try {
-      return new HashSet<Key>(_keyRecordMap.keySet());
+      return new TreeSet<Key>(_keyRecordMap.keySet());
     } finally {
       _keyMapLock.readLock().unlock();
     }
@@ -195,11 +195,15 @@ public class Bitcask implements SortedMap<Key, Object> {
     
     Set<Key> keySet = keySet();
     
+    _log.fine("The keyset for this bitcask has cardinality: " + keySet.size());
+    
     Collection<Object> retList = new LinkedList<Object>();
     
     for(Key key : keySet) {
       retList.add(get(key));
     }
+    
+    _log.fine("All objects retrieved, returning");
     
     return retList;
   }
@@ -280,7 +284,7 @@ public class Bitcask implements SortedMap<Key, Object> {
       if(keyRecord == null)
         return null;
 
-      _log.fine("KeyRecord to try: " + keyRecord);
+      _log.finer("internalGetRecord: Trying and retrieving keyRecord: " + keyRecord);
 
       return _getManager.retrieveRecord(keyRecord);
     } finally {
@@ -381,7 +385,7 @@ public class Bitcask implements SortedMap<Key, Object> {
     
     private boolean _isRunning = false;
 
-    private Map<Key, KeyRecord> _keyToRecordMap = new HashMap<Key, KeyRecord>();
+    private Map<Key, KeyRecord> _tempKeyRecordMap = new HashMap<Key, KeyRecord>();
     
     @Override
     public void run() {
@@ -411,7 +415,7 @@ public class Bitcask implements SortedMap<Key, Object> {
 
           DBFileParser hintFileParser = new DBFileParser(hintFile);
 
-          _keyToRecordMap.putAll(hintFileParser.parseDBFile());
+          _tempKeyRecordMap.putAll(hintFileParser.parseDBFile());
 
           if(_keyClass == null)
             _keyClass = hintFileParser.getKeyClass();
@@ -431,7 +435,7 @@ public class Bitcask implements SortedMap<Key, Object> {
             
             DBFileParser dbFileParser = new DBFileParser(dbFile);
             
-            _keyToRecordMap.putAll(dbFileParser.parseDBFile());
+            _tempKeyRecordMap.putAll(dbFileParser.parseDBFile());
             
             if(_keyClass == null)
               _keyClass = dbFileParser.getKeyClass();
@@ -441,17 +445,32 @@ public class Bitcask implements SortedMap<Key, Object> {
           }
         }
         
+        if(workingFileList.isEmpty())  {
+          
+          // we update the main index and rename the temp hint file at once
+          _keyMapLock.writeLock().lock();
+          try {
+            // we overwrite the old mappings with the new
+            _keyRecordMap.putAll(_tempKeyRecordMap);
+          } finally {
+            _keyMapLock.writeLock().unlock();
+          }
+          
+          _log.info("ReadCompactDBTask END");
+          return;
+        }
+        
         // we use the temp hint file location to output all new data
         File tempHintFile = DBFileUtils.getTempHintFile(_dbFolder, _dbName);
         
         // we generate the new hint file and get an update key->record map
-        _keyToRecordMap = new HintFileWriter(hintFile, tempHintFile, _keyToRecordMap).writeTempHintFile();
+        _tempKeyRecordMap = new HintFileWriter(hintFile, tempHintFile, _tempKeyRecordMap).writeTempHintFile();
         
         // we update the main index and rename the temp hint file at once
         _keyMapLock.writeLock().lock();
         try {
           // we overwrite the old mappings with the new
-          _keyRecordMap.putAll(_keyToRecordMap);
+          _keyRecordMap.putAll(_tempKeyRecordMap);
           
           // we delete the old hint file
           hintFile.delete();

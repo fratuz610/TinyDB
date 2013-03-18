@@ -45,24 +45,32 @@ public class TinyDBTest {
     LogManager.getLogManager().readConfiguration(configFile);
         
     TinyDBDataService dataService = new TinyDBDataService(new BitcaskOptions()
-            .withCompactEvery(25, TimeUnit.SECONDS)
-            .withRecordPerFile(15));
+            .withCompactEvery(10, TimeUnit.MINUTES)
+            .withRecordPerFile(1500));
     
     /*
+    long start = new Date().getTime();
+    
     _log.info("Inserting messages: ");
-    for(int i = 0; i < 20; i++) {
+    for(int i = 0; i < 20000; i++) {
       Message mess = new Message();
       mess.author = "Myself " + Math.random()*new Date().getTime();
       mess.message = "Message very nice " + Math.random()*new Date().getTime();
       dataService.put(mess);
     }
-    _log.info("Insertion complete! retrieving messages");
+    long end = new Date().getTime();
+    _log.info("Insertion complete! operation took: " + (end - start) + " millis");
     */
+    
+    _log.info("Retrieving all messages");
+    
+    long start = new Date().getTime();
     List<Message> messList = dataService.getList(new Query()
-            .filter("timestamp >=", 1363563918223l)
             .orderBy("timestamp", OrderType.DESCENDING), Message.class);
     
     _log.info("Message list size: " + messList.size());
+    long end = new Date().getTime();
+    _log.info("All messages retrieved! operation took: " + (end - start) + " millis");
     
     for(Message mess : messList) {
       _log.info("Message: " + mess);
