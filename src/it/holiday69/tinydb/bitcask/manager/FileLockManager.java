@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package it.holiday69.tinydb.bitcask.lock;
+package it.holiday69.tinydb.bitcask.manager;
 
 import java.io.File;
 import java.util.HashMap;

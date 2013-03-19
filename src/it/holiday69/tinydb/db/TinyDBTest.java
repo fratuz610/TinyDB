@@ -4,15 +4,14 @@
  */
 package it.holiday69.tinydb.db;
 
-import it.holiday69.dataservice.DataService;
 import it.holiday69.dataservice.query.OrderType;
 import it.holiday69.dataservice.query.Query;
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import it.holiday69.tinydb.db.annotations.Id;
 import it.holiday69.tinydb.db.annotations.Indexed;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.text.NumberFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -46,9 +45,10 @@ public class TinyDBTest {
         
     TinyDBDataService dataService = new TinyDBDataService(new BitcaskOptions()
             .withCompactEvery(10, TimeUnit.MINUTES)
-            .withRecordPerFile(1500));
-    
-    /*
+            .withRecordPerFile(5000)
+            .withCacheSize(8*1024*1024));
+            
+        
     long start = new Date().getTime();
     
     _log.info("Inserting messages: ");
@@ -60,23 +60,67 @@ public class TinyDBTest {
     }
     long end = new Date().getTime();
     _log.info("Insertion complete! operation took: " + (end - start) + " millis");
-    */
+    
+    start = new Date().getTime();
+    dataService.get(100l, Message.class);
+    end = new Date().getTime();
+    _log.info("First operation took: " + (end - start) + " millis");
     
     _log.info("Retrieving all messages");
     
-    long start = new Date().getTime();
+    start = new Date().getTime();
     List<Message> messList = dataService.getList(new Query()
-            .orderBy("timestamp", OrderType.DESCENDING), Message.class);
+            .filter("timestamp >", 1l)
+            .orderBy("timestamp", OrderType.DESCENDING)
+            .limit(1), Message.class);
     
     _log.info("Message list size: " + messList.size());
-    long end = new Date().getTime();
+    end = new Date().getTime();
     _log.info("All messages retrieved! operation took: " + (end - start) + " millis");
     
-    for(Message mess : messList) {
-      _log.info("Message: " + mess);
+    for(int i = 2; i < 10; i++) {
+      _log.info("Retrieving all messages (x" + i + ")");
+
+      start = new Date().getTime();
+      messList = dataService.getList(new Query()
+              .filter("timestamp >", 1l)
+              //.orderBy("timestamp")
+              .limit(100), Message.class);
+
+      _log.info("Message list size: " + messList.size());
+      end = new Date().getTime();
+      _log.info("All messages retrieved! operation took: " + (end - start) + " millis");
+      
+      Message oneMess = messList.get((int)(30*Math.random()));
+      
+      start = new Date().getTime();
+      oneMess = dataService.get(oneMess.messageId, Message.class);
+      end = new Date().getTime();
+      _log.info("Simple Get on the primary key: operation took: " + (end - start) + " millis");
+      
+      start = new Date().getTime();
+      oneMess = dataService.get("timestamp", oneMess.timestamp, Message.class);
+      end = new Date().getTime();
+      _log.info("Simple Get on the a field key: operation took: " + (end - start) + " millis");
+      
+      _log.info("Memory usage after this iteration: " + getMemoryUsage());
     }
     
     dataService.shutdown(true);
     
+  }
+  
+  private static String getMemoryUsage() {
+    Runtime runtime = Runtime.getRuntime();
+
+    NumberFormat format = NumberFormat.getInstance();
+
+    StringBuilder sb = new StringBuilder();
+    long allocatedMemory = runtime.totalMemory();
+    long freeMemory = runtime.freeMemory();
+
+    sb.append("memory in use: " + format.format((allocatedMemory - freeMemory) / 1024) + " / " + format.format(allocatedMemory / 1024));
+    
+    return sb.toString();
   }
 }

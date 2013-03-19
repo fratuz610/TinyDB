@@ -2,14 +2,14 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package it.holiday69.tinydb.bitcask.file;
+package it.holiday69.tinydb.bitcask.manager;
 
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
-import it.holiday69.tinydb.bitcask.file.vo.AppendInfo;
-import it.holiday69.tinydb.bitcask.file.vo.Key;
-import it.holiday69.tinydb.bitcask.file.vo.Record;
+import it.holiday69.tinydb.bitcask.vo.AppendInfo;
+import it.holiday69.tinydb.bitcask.vo.Key;
+import it.holiday69.tinydb.bitcask.vo.Record;
 import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
-import it.holiday69.tinydb.bitcask.lock.FileLockManager;
+import it.holiday69.tinydb.bitcask.manager.FileLockManager;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.Date;

@@ -5,7 +5,7 @@
 package it.holiday69.tinydb.db.handler;
 
 import it.holiday69.tinydb.bitcask.Bitcask;
-import it.holiday69.tinydb.bitcask.file.vo.Key;
+import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
 import it.holiday69.tinydb.db.vo.ClassInfo;

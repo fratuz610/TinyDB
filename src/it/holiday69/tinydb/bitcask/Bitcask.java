@@ -4,16 +4,17 @@
  */
 package it.holiday69.tinydb.bitcask;
 
-import it.holiday69.tinydb.bitcask.file.AppendManager;
+import it.holiday69.tinydb.bitcask.manager.AppendManager;
+import it.holiday69.tinydb.bitcask.manager.CacheManager;
 import it.holiday69.tinydb.bitcask.file.DBFileParser;
-import it.holiday69.tinydb.bitcask.file.GetManager;
+import it.holiday69.tinydb.bitcask.manager.GetManager;
 import it.holiday69.tinydb.bitcask.file.HintFileWriter;
 import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
 import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
-import it.holiday69.tinydb.bitcask.file.vo.AppendInfo;
-import it.holiday69.tinydb.bitcask.file.vo.Key;
-import it.holiday69.tinydb.bitcask.file.vo.KeyRecord;
-import it.holiday69.tinydb.bitcask.lock.FileLockManager;
+import it.holiday69.tinydb.bitcask.vo.AppendInfo;
+import it.holiday69.tinydb.bitcask.vo.Key;
+import it.holiday69.tinydb.bitcask.vo.KeyRecord;
+import it.holiday69.tinydb.bitcask.manager.FileLockManager;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -50,10 +51,11 @@ public class Bitcask implements SortedMap<Key, Object> {
   
   private final AppendManager _appendManager;
   private final GetManager _getManager;
+  private final CacheManager _cacheManager;
   
   private final ReadWriteLock _keyMapLock = new ReentrantReadWriteLock();
   private final FileLockManager _fileLockManager = new FileLockManager();
-  private final ScheduledExecutorService _compactExecutor = Executors.newSingleThreadScheduledExecutor();
+  private final ScheduledExecutorService _compactExecutor;
   private final ReadCompactDBTask _readCompactDBTask = new ReadCompactDBTask();
   
   public Bitcask(String dbName, BitcaskOptions options) {
@@ -66,27 +68,41 @@ public class Bitcask implements SortedMap<Key, Object> {
     if(!_dbFolder.exists() && !_dbFolder.mkdir())
       throw new RuntimeException("DB folder: " + _dbFolder + " doesn't exist and cannot be created");
     
-    // we run the read compact task at startup
+    // we run the read autoCompact task at startup
     _readCompactDBTask.run();
         
     // we initialize the append && get manager
     _appendManager = new AppendManager(_dbName, _options, _fileLockManager);
     _getManager = new GetManager(_fileLockManager);
+    _cacheManager = new CacheManager(_dbName, _options);
     
-    // we add the shutdown hook to stop the read and compact db task
-    Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+    if(_options.autoCompact) {
+      
+      _log.fine("Autocompact enabled every: " + _options.compactFrequency + " " + _options.compactTimeUnit);
+      
+      _compactExecutor = Executors.newSingleThreadScheduledExecutor();
+      
+      // we add the shutdown hook to stop the read and autoCompact db task
+      Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
 
-      @Override
-      public void run() {
-        _log.info("Shutting down compact executor");
-        _compactExecutor.shutdownNow();
-      }
-    }));
+        @Override
+        public void run() {
+          _log.info("Shutting down compact executor");
+          _compactExecutor.shutdownNow();
+        }
+      }));
+      
+      // we schedule the read autoCompact db task
+      _compactExecutor.scheduleWithFixedDelay(_readCompactDBTask, _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
+    } else {
+      
+      _log.fine("Autocompact disabled");
+      _compactExecutor = null;
+    }
     
-    _log.info("Bitcask '"+dbName+"' started");
+    _log.fine("Bitcask '"+dbName+"' started");
     
-    // we schedule the read compact db task
-    _compactExecutor.scheduleWithFixedDelay(_readCompactDBTask, _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
+    
   }
   
   @Override
@@ -276,6 +292,12 @@ public class Bitcask implements SortedMap<Key, Object> {
   
   private byte[] internalGetRecord(Key key) {
     
+    // write through cache GET
+    byte[] cachedData = _cacheManager.get(key);
+    
+    if(cachedData != null)
+      return cachedData;
+    
     _keyMapLock.readLock().lock();
     
     try {
@@ -286,7 +308,12 @@ public class Bitcask implements SortedMap<Key, Object> {
 
       _log.finer("internalGetRecord: Trying and retrieving keyRecord: " + keyRecord);
 
-      return _getManager.retrieveRecord(keyRecord);
+      byte[] retValue = _getManager.retrieveRecord(keyRecord);
+      
+      // updates the cache
+      _cacheManager.put(key, retValue);
+      
+      return retValue;
     } finally {
       _keyMapLock.readLock().unlock();
     }
@@ -297,18 +324,21 @@ public class Bitcask implements SortedMap<Key, Object> {
   public Object put(Key key, Object value) {
     
     if(key.keyValue() instanceof String)
-      internalAddRecord(new Key().fromString((String) key.keyValue()), KryoUtils.writeClassAndObject(value));
+      internalPutRecord(new Key().fromString((String) key.keyValue()), KryoUtils.writeClassAndObject(value));
     else if(key.keyValue() instanceof Long)
-      internalAddRecord(new Key().fromLong((Long) key.keyValue()), KryoUtils.writeClassAndObject(value));
+      internalPutRecord(new Key().fromLong((Long) key.keyValue()), KryoUtils.writeClassAndObject(value));
     else if(key.keyValue() instanceof Double)
-      internalAddRecord(new Key().fromDouble((Double) key.keyValue()), KryoUtils.writeClassAndObject(value));
+      internalPutRecord(new Key().fromDouble((Double) key.keyValue()), KryoUtils.writeClassAndObject(value));
     else
       throw new IllegalArgumentException("Supported key types are only String/Long/Double");
     
     return value;
   }
   
-  private void internalAddRecord(Key key, byte[] data) {
+  private void internalPutRecord(Key key, byte[] data) {
+    
+    // write through cache PUT
+    _cacheManager.put(key, data);
     
     AppendInfo appendInfo = null;
     synchronized(_appendManager) {
@@ -338,6 +368,7 @@ public class Bitcask implements SortedMap<Key, Object> {
     try {
       Object obj = get(key);
       _keyRecordMap.remove(key);
+      
       return obj;
     } finally {
       _keyMapLock.writeLock().unlock();

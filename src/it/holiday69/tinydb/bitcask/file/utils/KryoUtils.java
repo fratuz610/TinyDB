@@ -8,8 +8,10 @@ package it.holiday69.tinydb.bitcask.file.utils;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import it.holiday69.tinydb.bitcask.vo.Key;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.TreeSet;
 
 /**
  *
@@ -108,8 +110,7 @@ public class KryoUtils {
     
     ByteArrayOutputStream bos = new ByteArrayOutputStream(9);
     Output output = new Output(bos);
-    Kryo kryo = new Kryo();
-    kryo.writeClassAndObject(output, obj);
+    getKryo().writeClassAndObject(output, obj);
     output.close();
     return bos.toByteArray();
   }
@@ -120,8 +121,15 @@ public class KryoUtils {
    */
   public static Object readClassAndObject(InputStream in) {
     Input input = new Input(in, 1);
+    
+    return getKryo().readClassAndObject(input);
+  }
+  
+  private static Kryo getKryo() {
     Kryo kryo = new Kryo();
-    return kryo.readClassAndObject(input);
+    kryo.register(Key.class);
+    kryo.register(TreeSet.class);
+    return kryo;
   }
   
   /**

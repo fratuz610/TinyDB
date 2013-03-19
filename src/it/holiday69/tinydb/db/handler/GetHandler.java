@@ -9,7 +9,7 @@ import it.holiday69.dataservice.query.OrderFilter;
 import it.holiday69.dataservice.query.OrderType;
 import it.holiday69.dataservice.query.Query;
 import it.holiday69.tinydb.bitcask.Bitcask;
-import it.holiday69.tinydb.bitcask.file.vo.Key;
+import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
 import it.holiday69.tinydb.db.vo.ClassInfo;
@@ -77,12 +77,11 @@ public class GetHandler {
   
   public <T> List<T> getListFromQuery(Query query, Class<T> classOfT) {
     
-    System.out.println("Get list from query");
-    _log.info("Get list from query");
+    _log.fine("Get list from query");
     
     List<Key> finalKeyList = getKeysFromQuery(query, classOfT);
     
-    _log.info("Got " + finalKeyList.size() + " keys");
+    _log.fine("Got " + finalKeyList.size() + " keys");
     
     List<T> finalRetList = new LinkedList<T>();
     
@@ -116,13 +115,13 @@ public class GetHandler {
       }
     } else {
       
-      _log.info("Getting all keys for " + classOfT.getSimpleName());
+      _log.fine("Getting all keys for '" + classOfT.getSimpleName() + "'");
       
       // no filters to apply, get all entities
       finalKeyList.addAll(_bitcaskManager.getEntityDB(classOfT).keySet());
     }
     
-    _log.info("Field  Filters applied!");
+    _log.fine("Field Filters applied: " + finalKeyList + " elems");
         
     if(query.getOrderFilterList().size() > 1)
       throw new RuntimeException("Multiple order filters are not supported at the moment, please use just one");
@@ -130,24 +129,24 @@ public class GetHandler {
     if(!query.getOrderFilterList().isEmpty())
       finalKeyList = applyOrder(query.getOrderFilterList().get(0), finalKeyList, classOfT);
     
-    _log.info("Order Filters applied!");
+    _log.fine("Order Filters applied: " + finalKeyList.size()+ " elems");
     
     // we apply the offset if any
     if(query.getOffset() < finalKeyList.size())
       finalKeyList = finalKeyList.subList(query.getOffset(), finalKeyList.size());
     
-    _log.info("Offset applied!");
+    _log.fine("Offset applied: " + finalKeyList.size()+ " elems");
     
     // we apply the limit if any
     if(query.getLimit() <= finalKeyList.size())
       finalKeyList = finalKeyList.subList(0, query.getLimit());
     
-    _log.info("Limit applied!");
+    _log.fine("Limit applied: " + finalKeyList.size()+ " elems");
     
     return finalKeyList;
   }
   
-  private <T> Set<Key> applyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+  private <T> List<Key> applyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
 
     ClassInfo classInfo = _dbMapper.getClassInfo(classOfT);
     
@@ -157,7 +156,7 @@ public class GetHandler {
       return applyFieldFilter(fieldFilter, classOfT);
   }
   
-  private <T> Set<Key> applyFieldFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+  private <T> List<Key> applyFieldFilter(FieldFilter fieldFilter, Class<T> classOfT) {
     
     ClassInfo classInfo = _dbMapper.getClassInfo(classOfT);
     
@@ -165,7 +164,7 @@ public class GetHandler {
     if(!classInfo.indexedFieldNameList.contains(fieldFilter.getFieldName()))
       throw new RuntimeException("The field: '" + fieldFilter.getFieldName() + "' is not indexed and cannot be used in a query");
     
-    Set<Key> extractKeyList = new TreeSet<Key>();
+    List<Key> extractKeyList = new LinkedList<Key>();
       
     Bitcask fieldIndexDB = _bitcaskManager.getIndexDB(classOfT, fieldFilter.getFieldName());
     
@@ -206,9 +205,9 @@ public class GetHandler {
     return extractKeyList;
   }
   
-  private <T> Set<Key> applyPrimaryKeyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+  private <T> List<Key> applyPrimaryKeyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
     
-    Set<Key> extractKeyList = new TreeSet<Key>();
+    List<Key> extractKeyList = new LinkedList<Key>();
     
     Bitcask indexDB = _bitcaskManager.getEntityDB(classOfT);
     
@@ -255,7 +254,7 @@ public class GetHandler {
       _log.finer("Imposing order by primary key: " + classInfo.idFieldName);
       
       // key ordering
-      orderedKeyList.addAll(filteredKeyList);
+      orderedKeyList = filteredKeyList;
       
     } else {
       // we check if the order is on the any field
@@ -269,16 +268,28 @@ public class GetHandler {
 
       _log.finer("The index has cardinality: " + indexTreeMap.size());
       
+      // reorganize as array list for fast lookups
+      orderedKeyList = new ArrayList<Key>(indexTreeMap.size());
+      
+      long start = new Date().getTime();
+      
       // we flatten the index structure
       for(Object tempTreeSetObj : indexTreeMap.values()) {
-        
-        TreeSet<Key> tempTreeSet = (TreeSet<Key>) tempTreeSetObj;
-        
-        for(Key key : tempTreeSet) {
-          if(filteredKeyList.contains(key))
-            orderedKeyList.add(key);
-        } 
+        orderedKeyList.addAll((TreeSet<Key>) tempTreeSetObj);
       }
+      
+      Set<Key> filteredHashKeySet = new HashSet<Key>(filteredKeyList);
+      List<Key> tempOrderedList = new ArrayList<Key>(filteredKeyList.size());
+      
+      for(Key key : orderedKeyList) 
+        if(filteredHashKeySet.contains(key))
+          tempOrderedList.add(key);
+      
+      orderedKeyList = tempOrderedList;
+      
+      long end = new Date().getTime();
+      
+      _log.info("Applying order time: " + (end-start) + " secs");
       
       _log.finer("After imposing order on "+orderFilter.getFieldName()+" extractKeyList has " + orderedKeyList.size() + " elements");
     }

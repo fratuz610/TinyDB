@@ -7,7 +7,7 @@ package it.holiday69.tinydb.db;
 import it.holiday69.dataservice.DataService;
 import it.holiday69.dataservice.query.Query;
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
-import it.holiday69.tinydb.bitcask.file.vo.Key;
+import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.handler.DeleteHandler;
 import it.holiday69.tinydb.db.handler.GetHandler;
 import it.holiday69.tinydb.db.handler.PutHandler;

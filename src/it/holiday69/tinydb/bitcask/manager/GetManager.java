@@ -2,10 +2,10 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package it.holiday69.tinydb.bitcask.file;
+package it.holiday69.tinydb.bitcask.manager;
 
-import it.holiday69.tinydb.bitcask.file.vo.KeyRecord;
-import it.holiday69.tinydb.bitcask.lock.FileLockManager;
+import it.holiday69.tinydb.bitcask.vo.KeyRecord;
+import it.holiday69.tinydb.bitcask.manager.FileLockManager;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.FileInputStream;
 import java.util.logging.Logger;
@@ -18,7 +18,7 @@ public class GetManager {
   
   private final Logger _log = Logger.getLogger(GetManager.class.getSimpleName());
   
-  public final FileLockManager _fileLockManager;
+  private final FileLockManager _fileLockManager;
   
   public GetManager(FileLockManager fileLockManager) {
     _fileLockManager = fileLockManager;

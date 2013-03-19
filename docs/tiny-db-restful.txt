@@ -1,0 +1,46 @@
+
+* Tables have to be defined first
+
+** They can be updated but only the fieldKeyList can be modified
+
+POST /api/table/<table-id>
+{
+	"tableId": "message",
+	"primaryKey": { "name":"messageId", "type":"long" },
+	"fieldKeyList": [
+		{ "name":"timestamp", "type":"long" },
+		{ "name":"author", "type":"string" }
+	]
+}
+
+* Retrieves the table info
+
+GET /api/table/<table-id>
+
+* Retrieves the table stats
+
+GET /api/table/<table-id>/stats
+
+* Deletes a table
+
+DELETE /api/table/<table-id>
+
+********************************
+
+Data management
+
+* add data
+** nested objects are treated like maps and cannot be indexed
+** Lists and maps cannot be indexed
+
+POST /api/<table-id>
+{
+	"key": "value", # strings are supported
+	"aLongField": 123, # numbers are long
+	"aDoubleField": 123.00 # no floats, only double
+	"aListField": [
+		123.00, 1234.00
+		] # lists are supported
+}
+
+	
