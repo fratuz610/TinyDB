@@ -49,7 +49,8 @@ public class TinyDBTestDelete {
             .withCompactEvery(10, TimeUnit.MINUTES)
             .withRecordPerFile(5000)
             .withAsyncPuts(false)
-            .withCacheSize(8*1024*1024), new ScheduledThreadPoolExecutor(2));
+            .withCacheSize(8*1024*1024)
+            .withClassRegistration(Message.class, 10), new ScheduledThreadPoolExecutor(2));
     
     _log.info("Inserting message: ");
     
@@ -63,11 +64,11 @@ public class TinyDBTestDelete {
     
     _log.info("Retrieved mess: " + retrievedMess);
     
-    dataService.delete(mess);
+    //dataService.delete(mess);
     
-    retrievedMess = dataService.get("author", "Hello world", Message.class);
+    //retrievedMess = dataService.get("author", "Hello world", Message.class);
     
-    _log.info("Retrieved mess after deleting: " + retrievedMess);
+    //_log.info("Retrieved mess after deleting: " + retrievedMess);
     
     dataService.shutdown(true);
     

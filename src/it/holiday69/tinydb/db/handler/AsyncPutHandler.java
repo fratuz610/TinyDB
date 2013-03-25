@@ -34,7 +34,6 @@ public class AsyncPutHandler implements PutHandler<Object> {
     
     _putExecutor = executor;
     _putExecutor.submit(new PutWorker());
-    _putExecutor.shutdown();
   }
   
   @Override
@@ -59,7 +58,7 @@ public class AsyncPutHandler implements PutHandler<Object> {
     @Override
     public void run() {
       
-      Object obj;
+      Object obj = null;
       try {
       
         while(true) {
@@ -69,19 +68,26 @@ public class AsyncPutHandler implements PutHandler<Object> {
             break;
           }
           
-          obj = _workingQueue.poll(10, TimeUnit.SECONDS);
+          //_log.info("AsyncPutHandler: Polling from working queue");
           
-          if(obj != null)
+          try {
+            obj = _workingQueue.poll(10, TimeUnit.SECONDS);
+          } catch(InterruptedException ex) {
+            _log.info("Got Interrupted, setting shutdown flag");
+            _shutdown = true;
+          }
+
+          if(obj != null) {
+            //_log.info("AsyncPutHandler: Persising object");
             _putHandler.put(obj);
+          }
           
         }
         
-      } catch(InterruptedException ex) {
-        _log.info("Got Interrupted, shutting down async writer");
-        return;
       } catch(Throwable th) {
         _log.severe("Exception while writing to the DB: " + ExceptionUtils.getFullExceptionInfo(th));
       }
+      
     }
   }
 }

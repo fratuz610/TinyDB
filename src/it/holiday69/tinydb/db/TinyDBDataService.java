@@ -34,10 +34,13 @@ public class TinyDBDataService extends DataService {
   private final PutHandler _putHandler;
   private final GetHandler _getHandler;
   private final DeleteHandler _deleteHandler;
+  private final ScheduledExecutorService _executor;
   
   private final Map<Class, Integer> _kryoClassMap = Collections.synchronizedMap(new HashMap<Class, Integer>());
   
   public TinyDBDataService(BitcaskOptions options, ScheduledExecutorService executor) {
+    
+    _executor = executor;
     
     _bitcaskManager = new BitcaskManager(options, executor);
     _dbMapper = new TinyDBMapper();
@@ -56,11 +59,11 @@ public class TinyDBDataService extends DataService {
   }
   
   public TinyDBDataService(BitcaskOptions options) {
-    this(options, Executors.newSingleThreadScheduledExecutor());
+    this(options, Executors.newScheduledThreadPool(5));
   }
   
   public TinyDBDataService() {
-    this(new BitcaskOptions(), Executors.newSingleThreadScheduledExecutor());
+    this(new BitcaskOptions(), Executors.newScheduledThreadPool(5));
   }
   
   public void register(Class<?> clazz, int index) {
@@ -69,10 +72,6 @@ public class TinyDBDataService extends DataService {
   
   @Override
   public <T> void put(T object) {
-    
-    if(!_kryoClassMap.containsKey(object.getClass()))
-      throw new RuntimeException("Class: " + object.getClass() + " hasn't been registered");
-    
     _putHandler.put(object);
   }
 
@@ -85,49 +84,41 @@ public class TinyDBDataService extends DataService {
   
   @Override
   public <T, V> T get(V keyValue, Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getFromKey(keyValue, classOfT);
   }
   
   @Override
   public <T> T get(String fieldName, Object fieldValue, Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getFromQuery(new Query().filter(fieldName, fieldValue), classOfT);
   }
 
   @Override
   public <T> T get(Query query, Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getFromQuery(query, classOfT);
   }
   
   @Override
   public <T> T get(Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getAny(classOfT);
   }
   
   @Override
   public <T> List<T> getList(String fieldName, Object fieldValue, Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getListFromQuery(new Query().filter(fieldName, fieldValue), classOfT);
   }
   
   @Override
   public <T> List<T> getList(Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getAll(classOfT);
   }
   
   @Override
   public <T> List<T> getList(Query query, Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getListFromQuery(query, classOfT);
   }
  
   @Override
   public <T> void delete(T object) {
-    verifyClassRegistration(object.getClass());
     _deleteHandler.delete(object);
   }
 
@@ -139,7 +130,6 @@ public class TinyDBDataService extends DataService {
   
   @Override
   public <T> void deleteAll(Query query, Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     List<Key> keyList = _getHandler.getKeysFromQuery(query, classOfT);
     for(Key key : keyList)
       _deleteHandler.deleteFromKey(key, classOfT);
@@ -147,32 +137,22 @@ public class TinyDBDataService extends DataService {
   
   @Override
   public <T> void deleteAll(Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     _deleteHandler.deleteAll(classOfT);
   }
     
   @Override
   public <T> long getResultSetSize(Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getResultSetSize(classOfT);
   }
 
   @Override
   public <T> long getResultSetSize(String fieldName, Object fieldValue, Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getResultSetSize(new Query().filter(fieldName, fieldValue), classOfT);
   }
 
   @Override
   public <T> long getResultSetSize(Query query, Class<T> classOfT) {
-    verifyClassRegistration(classOfT);
     return _getHandler.getResultSetSize(query, classOfT);
-  }
- 
-  private void verifyClassRegistration(Class<?> classOfT) {
-    if(!_kryoClassMap.containsKey(classOfT))
-      throw new RuntimeException("Class: " + classOfT + " hasn't been registered");
-    
   }
   
   public void shutdown(boolean compact) {

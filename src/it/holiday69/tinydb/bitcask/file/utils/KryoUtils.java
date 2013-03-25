@@ -104,8 +104,7 @@ public class KryoUtils {
   }
   
   /**
-   * Writes an arbitrary object to the output stream when the type
-   * is unknown.
+   * Serializes an object into a byte array
    */
   public static byte[] writeClassAndObject(Object obj) {
     

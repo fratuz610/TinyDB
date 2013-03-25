@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -26,7 +28,7 @@ public class TinyDBTest {
   
   public static class Message {
     @Id public Long messageId;
-    public String author;
+    @Indexed public String author;
     public String message;
     @Indexed public long timestamp = new Date().getTime();
     
@@ -42,15 +44,19 @@ public class TinyDBTest {
     
     FileInputStream configFile = new FileInputStream("logging.properties");
     LogManager.getLogManager().readConfiguration(configFile);
-        
+    
+    ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(3);
+    
     TinyDBDataService dataService = new TinyDBDataService(new BitcaskOptions()
             .withCompactEvery(10, TimeUnit.MINUTES)
             .withRecordPerFile(5000)
-            .withCacheSize(8*1024*1024));
+            .withCacheSize(8*1024*1024)
+            .withClassRegistration(Message.class, 10), executor);
         
     long start = new Date().getTime();
+    long end;
     
-    _log.info("Inserting messages: ");
+    /*_log.info("Inserting messages: ");
     for(int i = 0; i < 20000; i++) {
       Message mess = new Message();
       mess.author = "Myself " + Math.random()*new Date().getTime();
@@ -59,6 +65,7 @@ public class TinyDBTest {
     }
     long end = new Date().getTime();
     _log.info("Insertion complete! operation took: " + (end - start) + " millis");
+    */
     
     start = new Date().getTime();
     dataService.get(100l, Message.class);

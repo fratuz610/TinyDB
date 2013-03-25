@@ -4,17 +4,18 @@
  */
 package it.holiday69.tinydb.bitcask;
 
-import it.holiday69.tinydb.bitcask.manager.AppendManager;
-import it.holiday69.tinydb.bitcask.manager.CacheManager;
+import com.esotericsoftware.kryo.KryoException;
 import it.holiday69.tinydb.bitcask.file.DBFileParser;
-import it.holiday69.tinydb.bitcask.manager.GetManager;
 import it.holiday69.tinydb.bitcask.file.HintFileWriter;
 import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
-import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
+import it.holiday69.tinydb.bitcask.manager.AppendManager;
+import it.holiday69.tinydb.bitcask.manager.CacheManager;
+import it.holiday69.tinydb.bitcask.manager.FileLockManager;
+import it.holiday69.tinydb.bitcask.manager.GetManager;
+import it.holiday69.tinydb.bitcask.manager.KryoManager;
 import it.holiday69.tinydb.bitcask.vo.AppendInfo;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.bitcask.vo.KeyRecord;
-import it.holiday69.tinydb.bitcask.manager.FileLockManager;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -53,6 +54,7 @@ public class Bitcask implements SortedMap<Key, Object> {
   private final AppendManager _appendManager;
   private final GetManager _getManager;
   private final CacheManager _cacheManager;
+  private final KryoManager _kryoManager;
   
   private final ReadWriteLock _keyMapLock = new ReentrantReadWriteLock();
   private final FileLockManager _fileLockManager = new FileLockManager();
@@ -77,6 +79,7 @@ public class Bitcask implements SortedMap<Key, Object> {
     _appendManager = new AppendManager(_dbName, _options, _fileLockManager);
     _getManager = new GetManager(_fileLockManager);
     _cacheManager = new CacheManager(_dbName, _options);
+    _kryoManager = new KryoManager(_options);
     
     if(_options.autoCompact ) {
       
@@ -275,24 +278,28 @@ public class Bitcask implements SortedMap<Key, Object> {
     if(key == null)
       throw new NullPointerException("Null key provided!!");
     
+    byte[] rawRecord = null;
+    
     if(key instanceof String) {
-      byte[] rawRecord = internalGetRecord(new Key().fromString((String) key));
-      if(rawRecord == null) return null;
-      return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+      rawRecord = internalGetRecord(new Key().fromString((String) key));
     } else if(key instanceof Long) {
-      byte[] rawRecord = internalGetRecord(new Key().fromLong((Long) key));
-      if(rawRecord == null) return null;
-      return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+      rawRecord = internalGetRecord(new Key().fromLong((Long) key));
     } else if(key instanceof Double) {
-      byte[] rawRecord = internalGetRecord(new Key().fromDouble((Double) key));
-      if(rawRecord == null) return null;
-      return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+      rawRecord = internalGetRecord(new Key().fromDouble((Double) key));
     } else if(key instanceof Key) {
-      byte[] rawRecord = internalGetRecord((Key) key);
-      if(rawRecord == null) return null;
-      return KryoUtils.readClassAndObject(new ByteArrayInputStream(rawRecord));
+      rawRecord = internalGetRecord((Key) key);
     } else
       throw new IllegalArgumentException("Supported key types are only String/Long/Double: " + key.getClass() + " provided");
+
+    if(rawRecord == null) 
+      return null;
+
+    try {
+      return _kryoManager.deserializeObject(new ByteArrayInputStream(rawRecord));
+    } catch(KryoException ex) {
+      //_log.info("Unable to deserialize value from key: " + key + " marking the object as deleted");
+      return null;
+    }
   }
   
   private byte[] internalGetRecord(Key key) {
@@ -330,11 +337,11 @@ public class Bitcask implements SortedMap<Key, Object> {
   public Object put(Key key, Object value) {
     
     if(key.keyValue() instanceof String)
-      internalPutRecord(new Key().fromString((String) key.keyValue()), KryoUtils.writeClassAndObject(value));
+      internalPutRecord(new Key().fromString((String) key.keyValue()), _kryoManager.serializeObject(value));
     else if(key.keyValue() instanceof Long)
-      internalPutRecord(new Key().fromLong((Long) key.keyValue()), KryoUtils.writeClassAndObject(value));
+      internalPutRecord(new Key().fromLong((Long) key.keyValue()), _kryoManager.serializeObject(value));
     else if(key.keyValue() instanceof Double)
-      internalPutRecord(new Key().fromDouble((Double) key.keyValue()), KryoUtils.writeClassAndObject(value));
+      internalPutRecord(new Key().fromDouble((Double) key.keyValue()), _kryoManager.serializeObject(value));
     else
       throw new IllegalArgumentException("Supported key types are only String/Long/Double");
     
