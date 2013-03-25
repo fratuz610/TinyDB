@@ -37,6 +37,9 @@ public class GetManager {
       
       FileInputStream fis = new FileInputStream(keyRecord.file);
       
+      if(keyRecord.valueSize == 0)
+        return null;
+      
       byte[] ret = new byte[(int)keyRecord.valueSize];
       
       fis.skip(keyRecord.valuePosition);

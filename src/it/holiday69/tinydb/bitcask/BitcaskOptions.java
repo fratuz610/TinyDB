@@ -19,6 +19,7 @@ public class BitcaskOptions {
   public TimeUnit compactTimeUnit = TimeUnit.MINUTES;
   public int cacheSize = 1024 * 1024; // 512 kb cache
   public boolean autoCompact = true;
+  public boolean asyncPuts = true;
   
   public BitcaskOptions withDbFolder(String dbFolder) { this.dbFolder = dbFolder; return this; }
   public BitcaskOptions withRecordPerFile(int recordPerFile) { 
@@ -39,4 +40,6 @@ public class BitcaskOptions {
   }
   public BitcaskOptions withCacheSize(int cacheSize) { this.cacheSize = cacheSize; return this; }
   public BitcaskOptions withAutoCompactEnabled(boolean autoCompact) { this.autoCompact = autoCompact; return this; }
+  public BitcaskOptions withAsyncPuts(boolean asyncPuts) { this.asyncPuts = asyncPuts; return this; }
+  
 }

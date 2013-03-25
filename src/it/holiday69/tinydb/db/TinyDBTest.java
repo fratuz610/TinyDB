@@ -47,7 +47,6 @@ public class TinyDBTest {
             .withCompactEvery(10, TimeUnit.MINUTES)
             .withRecordPerFile(5000)
             .withCacheSize(8*1024*1024));
-            
         
     long start = new Date().getTime();
     
@@ -84,7 +83,7 @@ public class TinyDBTest {
       start = new Date().getTime();
       messList = dataService.getList(new Query()
               .filter("timestamp >", 1l)
-              //.orderBy("timestamp")
+              .orderBy("timestamp")
               .limit(100), Message.class);
 
       _log.info("Message list size: " + messList.size());

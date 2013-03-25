@@ -4,6 +4,7 @@
  */
 package it.holiday69.tinydb.bitcask.file;
 
+import it.holiday69.tinydb.bitcask.manager.CacheManager;
 import it.holiday69.tinydb.bitcask.manager.GetManager;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.bitcask.vo.KeyRecord;
@@ -11,6 +12,8 @@ import it.holiday69.tinydb.bitcask.vo.Record;
 import it.holiday69.tinydb.bitcask.manager.FileLockManager;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,17 +31,18 @@ public class HintFileWriter {
   private File _tempHintFile;
   private FileOutputStream _hintFos;
   private long _hintFilePos = 0;
-  private long _hintRecordCount = 0;
   
   private Map<Key, KeyRecord> _srcRecordMap;
   
   private final GetManager _getManager;
+  private final CacheManager _cacheManager;
   
-  public HintFileWriter(File hintFile, File tempHintFile, Map<Key, KeyRecord> srcRecordMap) {
+  public HintFileWriter(File hintFile, File tempHintFile, Map<Key, KeyRecord> srcRecordMap, CacheManager cacheManager) {
     _hintFile = hintFile;
     _tempHintFile = tempHintFile;
     _srcRecordMap = srcRecordMap;
     _getManager = new GetManager();
+    _cacheManager = cacheManager;
   }
   
   /**
@@ -55,12 +59,24 @@ public class HintFileWriter {
       if(_hintFos == null)
         _hintFos = new FileOutputStream(_tempHintFile);
       
+      FileChannel fch = _hintFos.getChannel();
+      
       for(Key key : _srcRecordMap.keySet()) {
 
         KeyRecord keyRecord = _srcRecordMap.get(key);
-
-        //_log.info("Retrieving data from re")
-        byte[] data = _getManager.retrieveRecord(keyRecord);
+        
+        if(keyRecord.valueSize == 0)
+          continue;
+        
+        byte[] data = null;
+        
+        // we check the cache first (if available
+        if(_cacheManager != null)
+          data = _cacheManager.get(key);
+        
+        // we hit the disk if we need to
+        if(data == null)
+          data = _getManager.retrieveRecord(keyRecord);
 
         if(data == null)
           continue;
@@ -70,10 +86,10 @@ public class HintFileWriter {
         long valuePosition = _hintFilePos + record.relativeValuePosition();
         long timestamp = new Date().getTime();
 
-        _hintFos.write(record.toByteArray());
+        fch.write(ByteBuffer.wrap(record.toByteArray()));
+        //_hintFos.write(record.toByteArray());
 
         _hintFilePos += record.toByteArray().length;
-        _hintRecordCount++;
         
         updatedMap.put(key, new KeyRecord()
                 .withFile(_hintFile)
@@ -82,7 +98,6 @@ public class HintFileWriter {
                 .withValuePosition(valuePosition));
       }
       
-      _hintFos.flush();
       _hintFos.close();
     } catch(Throwable th) {
       throw new RuntimeException("Unable to append record to file: " + _hintFile + " : ", th);

@@ -8,6 +8,7 @@ package it.holiday69.tinydb.bitcask.file.utils;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.FieldSerializer;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;

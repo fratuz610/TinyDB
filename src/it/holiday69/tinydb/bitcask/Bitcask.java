@@ -20,6 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -55,15 +56,16 @@ public class Bitcask implements SortedMap<Key, Object> {
   
   private final ReadWriteLock _keyMapLock = new ReentrantReadWriteLock();
   private final FileLockManager _fileLockManager = new FileLockManager();
-  private final ScheduledExecutorService _compactExecutor;
+  private ScheduledExecutorService _executor;
   private final ReadCompactDBTask _readCompactDBTask = new ReadCompactDBTask();
   
-  public Bitcask(String dbName, BitcaskOptions options) {
+  public Bitcask(String dbName, BitcaskOptions options, ScheduledExecutorService executor) {
     
     _dbName = dbName;
     _options = options;
     
     _dbFolder = new File(_options.dbFolder);
+    _executor = executor;
     
     if(!_dbFolder.exists() && !_dbFolder.mkdir())
       throw new RuntimeException("DB folder: " + _dbFolder + " doesn't exist and cannot be created");
@@ -76,35 +78,38 @@ public class Bitcask implements SortedMap<Key, Object> {
     _getManager = new GetManager(_fileLockManager);
     _cacheManager = new CacheManager(_dbName, _options);
     
-    if(_options.autoCompact) {
+    if(_options.autoCompact ) {
+      
+      if(_executor == null)
+        _executor = Executors.newSingleThreadScheduledExecutor();
       
       _log.fine("Autocompact enabled every: " + _options.compactFrequency + " " + _options.compactTimeUnit);
-      
-      _compactExecutor = Executors.newSingleThreadScheduledExecutor();
       
       // we add the shutdown hook to stop the read and autoCompact db task
       Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
 
         @Override
         public void run() {
-          _log.info("Shutting down compact executor");
-          _compactExecutor.shutdownNow();
+          _log.info("Shutting down executor");
+          _executor.shutdownNow();
         }
       }));
       
       // we schedule the read autoCompact db task
-      _compactExecutor.scheduleWithFixedDelay(_readCompactDBTask, _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
+      _executor.scheduleWithFixedDelay(_readCompactDBTask, _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
     } else {
       
       _log.fine("Autocompact disabled");
-      _compactExecutor = null;
     }
     
     _log.fine("Bitcask '"+dbName+"' started");
     
-    
   }
   
+  public Bitcask(String dbName, BitcaskOptions options) {
+    this(dbName, options, null);
+  }
+    
   @Override
   public Comparator<? super Key> comparator() {
     _keyMapLock.readLock().lock();
@@ -311,7 +316,8 @@ public class Bitcask implements SortedMap<Key, Object> {
       byte[] retValue = _getManager.retrieveRecord(keyRecord);
       
       // updates the cache
-      _cacheManager.put(key, retValue);
+      if(retValue != null)
+        _cacheManager.put(key, retValue);
       
       return retValue;
     } finally {
@@ -364,11 +370,16 @@ public class Bitcask implements SortedMap<Key, Object> {
   @Override
   public Object remove(Object key) {
     
+    // we save an empty record
+    
     _keyMapLock.writeLock().lock();
     try {
       Object obj = get(key);
-      _keyRecordMap.remove(key);
       
+      // we write an empty value
+      internalPutRecord((Key) key, new byte[0]);
+      
+      _keyRecordMap.remove(key);
       return obj;
     } finally {
       _keyMapLock.writeLock().unlock();
@@ -397,7 +408,8 @@ public class Bitcask implements SortedMap<Key, Object> {
   public void shutdown(boolean compact) {
     _log.fine("Shutting down bitcask: '" + _dbName + "'");
     
-    _compactExecutor.shutdownNow();
+    if(_executor != null)
+      _executor.shutdownNow();
     
     if(compact) {
       if(_readCompactDBTask.isRunning()) {
@@ -482,7 +494,18 @@ public class Bitcask implements SortedMap<Key, Object> {
           _keyMapLock.writeLock().lock();
           try {
             // we overwrite the old mappings with the new
-            _keyRecordMap.putAll(_tempKeyRecordMap);
+            
+            for(Key key : _tempKeyRecordMap.keySet()) {
+              KeyRecord currentKeyRecord = _keyRecordMap.get(key);
+              KeyRecord hintKeyRecord = _tempKeyRecordMap.get(key);
+              
+              // we skip the records that may have been overwritten during the compact operation
+              if(currentKeyRecord != null && hintKeyRecord.timestamp < currentKeyRecord.timestamp)
+                continue;
+              
+              _keyRecordMap.put(key, hintKeyRecord);
+            }
+            
           } finally {
             _keyMapLock.writeLock().unlock();
           }
@@ -494,8 +517,14 @@ public class Bitcask implements SortedMap<Key, Object> {
         // we use the temp hint file location to output all new data
         File tempHintFile = DBFileUtils.getTempHintFile(_dbFolder, _dbName);
         
+        long start = new Date().getTime();
+        
         // we generate the new hint file and get an update key->record map
-        _tempKeyRecordMap = new HintFileWriter(hintFile, tempHintFile, _tempKeyRecordMap).writeTempHintFile();
+        _tempKeyRecordMap = new HintFileWriter(hintFile, tempHintFile, _tempKeyRecordMap, _cacheManager).writeTempHintFile();
+        
+        long end = new Date().getTime();
+        
+        _log.info("Temp hint file written in " + (end-start) + " millis");
         
         // we update the main index and rename the temp hint file at once
         _keyMapLock.writeLock().lock();

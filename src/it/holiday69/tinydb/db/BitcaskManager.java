@@ -7,6 +7,7 @@ package it.holiday69.tinydb.db;
 import it.holiday69.tinydb.bitcask.Bitcask;
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.logging.Logger;
 
 /**
@@ -20,16 +21,18 @@ public class BitcaskManager {
   private final Map<String, Bitcask> _classDBMap = new HashMap<String, Bitcask>();
   
   private final BitcaskOptions _options;
+  private final ScheduledExecutorService _executor;
   
-  public BitcaskManager(BitcaskOptions options) {
+  public BitcaskManager(BitcaskOptions options, ScheduledExecutorService executor) {
     _options = options;
+    _executor = executor;
   }
   
   public Bitcask getEntityDB(String entityName) {
     
     synchronized(_classDBMap) {
       if(!_classDBMap.containsKey(entityName))
-        _classDBMap.put(entityName, new Bitcask(entityName, _options));
+        _classDBMap.put(entityName, new Bitcask(entityName, _options, _executor));
 
       return _classDBMap.get(entityName);
     }
@@ -54,6 +57,7 @@ public class BitcaskManager {
         _classDBMap.get(dbName).shutdown(compact);
       }
     }
+    
   }
   
 }

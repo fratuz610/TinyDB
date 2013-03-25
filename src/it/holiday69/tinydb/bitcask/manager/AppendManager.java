@@ -82,17 +82,7 @@ public class AppendManager {
       appendInfo.valuePosition = _currentFilePos + record.relativeValuePosition();
       appendInfo.timestamp = new Date().getTime();
       
-      // we lock until the file is available
-      _fileLockManager.writeLockFile(_currentFile);
-      
-      try {
-        _currentFos.write(record.toByteArray());
-        _currentFos.flush();
-      } finally {
-        // we unlock the file for writing
-        _fileLockManager.writeUnlockFile(_currentFile);
-      }
-        
+      _currentFos.write(record.toByteArray());
       
       _currentFilePos += record.toByteArray().length;
       _currentRecordNumber++;
@@ -117,6 +107,16 @@ public class AppendManager {
       throw new RuntimeException("Unable to append record to file: " + _currentFile + " : ", th);
     }
   }
+  /*
+  public void flush() {
+    
+    try {
+    if(_currentFos != null)
+      _currentFos.flush();
+    } catch(Throwable th) {
+      throw new RuntimeException("Unable to flush on disk to: " + _currentFile, th);
+    }
+  }*/
   
   private int getMaxFileNumber() {
     

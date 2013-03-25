@@ -8,10 +8,17 @@ import it.holiday69.dataservice.DataService;
 import it.holiday69.dataservice.query.Query;
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import it.holiday69.tinydb.bitcask.vo.Key;
+import it.holiday69.tinydb.db.handler.AsyncPutHandler;
 import it.holiday69.tinydb.db.handler.DeleteHandler;
 import it.holiday69.tinydb.db.handler.GetHandler;
 import it.holiday69.tinydb.db.handler.PutHandler;
+import it.holiday69.tinydb.db.handler.SyncPutHandler;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.logging.Logger;
 
 /**
@@ -28,20 +35,44 @@ public class TinyDBDataService extends DataService {
   private final GetHandler _getHandler;
   private final DeleteHandler _deleteHandler;
   
-  public TinyDBDataService() {
-    this(new BitcaskOptions());
-  }
+  private final Map<Class, Integer> _kryoClassMap = Collections.synchronizedMap(new HashMap<Class, Integer>());
   
-  public TinyDBDataService(BitcaskOptions options) {
-    _bitcaskManager = new BitcaskManager(options);
+  public TinyDBDataService(BitcaskOptions options, ScheduledExecutorService executor) {
+    
+    _bitcaskManager = new BitcaskManager(options, executor);
     _dbMapper = new TinyDBMapper();
-    _putHandler = new PutHandler(_bitcaskManager, _dbMapper);
+    
+    if(options.asyncPuts)
+      _putHandler = new AsyncPutHandler(_bitcaskManager, _dbMapper, executor);
+    else
+      _putHandler = new SyncPutHandler(_bitcaskManager, _dbMapper);
+    
     _getHandler = new GetHandler(_bitcaskManager, _dbMapper);
     _deleteHandler = new DeleteHandler(_bitcaskManager, _dbMapper);
   }
   
+  public TinyDBDataService(ScheduledExecutorService executor) {
+    this(new BitcaskOptions(), executor);
+  }
+  
+  public TinyDBDataService(BitcaskOptions options) {
+    this(options, Executors.newSingleThreadScheduledExecutor());
+  }
+  
+  public TinyDBDataService() {
+    this(new BitcaskOptions(), Executors.newSingleThreadScheduledExecutor());
+  }
+  
+  public void register(Class<?> clazz, int index) {
+    _kryoClassMap.put(clazz, index);
+  }
+  
   @Override
   public <T> void put(T object) {
+    
+    if(!_kryoClassMap.containsKey(object.getClass()))
+      throw new RuntimeException("Class: " + object.getClass() + " hasn't been registered");
+    
     _putHandler.put(object);
   }
 
@@ -49,86 +80,103 @@ public class TinyDBDataService extends DataService {
   public <T> void putAll(Iterable<T> entities) {
     
     for(T object : entities)
-      _putHandler.put(object);
+      put(object);
   }
   
   @Override
   public <T, V> T get(V keyValue, Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getFromKey(keyValue, classOfT);
   }
   
   @Override
   public <T> T get(String fieldName, Object fieldValue, Class<T> classOfT) {
-    
+    verifyClassRegistration(classOfT);
     return _getHandler.getFromQuery(new Query().filter(fieldName, fieldValue), classOfT);
   }
 
   @Override
   public <T> T get(Query query, Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getFromQuery(query, classOfT);
   }
   
   @Override
   public <T> T get(Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getAny(classOfT);
   }
   
   @Override
   public <T> List<T> getList(String fieldName, Object fieldValue, Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getListFromQuery(new Query().filter(fieldName, fieldValue), classOfT);
   }
   
   @Override
   public <T> List<T> getList(Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getAll(classOfT);
   }
   
   @Override
   public <T> List<T> getList(Query query, Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getListFromQuery(query, classOfT);
   }
  
   @Override
   public <T> void delete(T object) {
-    
+    verifyClassRegistration(object.getClass());
     _deleteHandler.delete(object);
   }
 
   @Override
   public <T> void deleteAll(Iterable<T> entities) {
-    
     for(T obj : entities)
-      _deleteHandler.delete(obj);
+      delete(obj);
   }
   
   @Override
   public <T> void deleteAll(Query query, Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     List<Key> keyList = _getHandler.getKeysFromQuery(query, classOfT);
     for(Key key : keyList)
       _deleteHandler.deleteFromKey(key, classOfT);
   }
   
   @Override
-  public <T> void deleteAll(Class<T> className) {
-    _deleteHandler.deleteAll(className);
+  public <T> void deleteAll(Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
+    _deleteHandler.deleteAll(classOfT);
   }
     
   @Override
   public <T> long getResultSetSize(Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getResultSetSize(classOfT);
   }
 
   @Override
   public <T> long getResultSetSize(String fieldName, Object fieldValue, Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getResultSetSize(new Query().filter(fieldName, fieldValue), classOfT);
   }
 
   @Override
   public <T> long getResultSetSize(Query query, Class<T> classOfT) {
+    verifyClassRegistration(classOfT);
     return _getHandler.getResultSetSize(query, classOfT);
   }
  
+  private void verifyClassRegistration(Class<?> classOfT) {
+    if(!_kryoClassMap.containsKey(classOfT))
+      throw new RuntimeException("Class: " + classOfT + " hasn't been registered");
+    
+  }
+  
   public void shutdown(boolean compact) {
     _bitcaskManager.shutdown(compact);
+    _putHandler.shutdown();
   }
 }

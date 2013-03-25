@@ -30,7 +30,7 @@ DELETE /api/table/<table-id>
 Data management
 
 * add data
-** nested objects are treated like maps and cannot be indexed
+** nested objects are treated like maps
 ** Lists and maps cannot be indexed
 
 POST /api/<table-id>
@@ -42,5 +42,7 @@ POST /api/<table-id>
 		123.00, 1234.00
 		] # lists are supported
 }
+
+
 
 	
