@@ -1,9 +1,8 @@
-TinyDB
-===================
+# TinyDB
 
 A simple and lightweight object oriented embeddable NoSQL DB written in Java
 
-** Features **
+## Features
 
 * Inspired by the [Bitcask key-value datastore from Riak](http://docs.basho.com/riak/1.2.0/tutorials/choosing-a-backend/Bitcask/)
     * All keys are kept in memory
@@ -17,13 +16,13 @@ A simple and lightweight object oriented embeddable NoSQL DB written in Java
 * Scales easily to millions of items per entity with just a few megs of RAM
 * Designed for embedded systems in mind (ARM)
 
-** TODO **
+## TODO
 
 * Automatic S3 Backups
 
-** Usage **
+## Usage
 
-*** 1 - Define a pojo ***
+### 1 - Define a pojo
 
     public static class Message {
         @Id public Long messageId;
@@ -41,7 +40,7 @@ A simple and lightweight object oriented embeddable NoSQL DB written in Java
 * If a field hasn't been indexed, it can't be queried for
 
 
-*** 2 - Start the TinyDBDataService singleton ***
+### 2 - Start the TinyDBDataService singleton
 
     TinyDBDataService dataService = new TinyDBDataService(new TinyDBOptions()
             .withCompactEvery(10, TimeUnit.MINUTES)
@@ -49,31 +48,31 @@ A simple and lightweight object oriented embeddable NoSQL DB written in Java
             .withCacheSize(8*1024*1024)
             .withExecutorPoolSize(5));
 
-*** 3 - Use and share among your threads! ***
+### 3 - Use and share among your threads!
 
-PUT
+#### PUT
     
     Message mess = new Message();
     mess.author = "Myself " + Math.random()*new Date().getTime();
     mess.message = "Message very nice " + Math.random()*new Date().getTime();
     dataService.put(mess);
 
-GET BY KEY
+#### GET BY KEY
 
     Message m = dataService.get(100l, Message.class);
     
-GETLIST BY QUERY
+#### GETLIST BY QUERY
     
     List<Message> messList = dataService.getList(new Query()
             .filter("timestamp >", 1l)
             .orderBy("timestamp", OrderType.DESCENDING)
             .limit(1), Message.class);
 
-DELETE
+#### DELETE
 
     dataService.delete(mess);
     
-*** 4 - Shutdown (if you like) ***
+### 4 - Shutdown (if you like)
 
     dataService.shutdown(true); // to autocompact
     dataService.shutdown(false); // no autocompact
