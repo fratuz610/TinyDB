@@ -16,7 +16,7 @@ A simple and lightweight object oriented embeddable NoSQL DB written in Java
 * Scales easily to millions of items per entity with just a few megs of RAM
 * Designed for embedded systems in mind (ARM)
 
-## TODO
+### TODO
 
 * Automatic S3 Backups
 
