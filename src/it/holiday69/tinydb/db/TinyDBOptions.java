@@ -52,6 +52,6 @@ public class TinyDBOptions {
   public int executorPoolSize = 5;
   
   public TinyDBOptions withAsyncUpdates(boolean asyncUpdates) { this.asyncUpdates = asyncUpdates; return this; }
-  public TinyDBOptions withExecutoPoolSize(int executorPoolSize) { this.executorPoolSize = executorPoolSize; return this; }
+  public TinyDBOptions withExecutorPoolSize(int executorPoolSize) { this.executorPoolSize = executorPoolSize; return this; }
   
 }

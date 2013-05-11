@@ -59,7 +59,7 @@ public class TinyDBTest {
             .withCompactEvery(10, TimeUnit.MINUTES)
             .withRecordPerFile(5000)
             .withCacheSize(8*1024*1024)
-            .withExecutoPoolSize(5));
+            .withExecutorPoolSize(5));
         
     dataService.mapClass(Message.class, 10);
     
