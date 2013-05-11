@@ -21,6 +21,7 @@ import it.holiday69.tinydb.bitcask.vo.Key;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
@@ -39,12 +40,11 @@ public class CacheManager {
   private final Map<Key, ByteArray> _cacheMap = new HashMap<Key, ByteArray>();
   private final LinkedList<Key> _keyList = new LinkedList<Key>();
   
-  private int _cacheSize;
-  private String _dbName;
+  // cache size is enforced at a class level
+  private static AtomicInteger _cacheSize = new AtomicInteger(0);
   
-  public CacheManager(String dbName, BitcaskOptions options) {
+  public CacheManager(BitcaskOptions options) {
     _options = options;
-    _dbName = dbName;
   }
   
   public byte[] get(Key key) {
@@ -80,9 +80,9 @@ public class CacheManager {
         _keyList.add(key);
       
       _cacheMap.put(key, new ByteArray(data));
-      _cacheSize += data.length;
+      _cacheSize.addAndGet(data.length);
 
-      while(_cacheSize > _options.cacheSize) {
+      while(_cacheSize.intValue() > _options.cacheSize && !_keyList.isEmpty()) {
         
         //_log.info("Reducing: DB: '"+_dbName+"' Keylist size: " + _keyList.size() + " map key set size: " + _cacheMap.keySet().size());
         
@@ -92,7 +92,7 @@ public class CacheManager {
         if(baToRemove == null)
           throw new RuntimeException("Null byte array from key: " + keyToRemove);
         
-        _cacheSize -= baToRemove.getByteArray().length;
+        _cacheSize.addAndGet(-baToRemove.getByteArray().length);
         _cacheMap.remove(keyToRemove);
       }
       
@@ -114,7 +114,8 @@ public class CacheManager {
       ByteArray removeBa = _cacheMap.remove(key);
       
       if(removeBa != null)
-        _cacheSize -= removeBa.getByteArray().length;
+         _cacheSize.addAndGet(-removeBa.getByteArray().length);
+      
       _log.info("Cache size: " + _cacheMap.keySet().size() + " / " + _cacheSize + " bytes");
     } finally {
       _lock.writeLock().unlock();

@@ -18,16 +18,14 @@ package it.holiday69.tinydb.db;
 
 import it.holiday69.dataservice.query.OrderType;
 import it.holiday69.dataservice.query.Query;
-import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import it.holiday69.tinydb.db.annotations.Id;
 import it.holiday69.tinydb.db.annotations.Indexed;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -57,27 +55,31 @@ public class TinyDBTest {
     FileInputStream configFile = new FileInputStream("logging.properties");
     LogManager.getLogManager().readConfiguration(configFile);
     
-    ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(3);
-    
-    TinyDBDataService dataService = new TinyDBDataService(new BitcaskOptions()
+    TinyDBDataService dataService = new TinyDBDataService(new TinyDBOptions()
             .withCompactEvery(10, TimeUnit.MINUTES)
             .withRecordPerFile(5000)
             .withCacheSize(8*1024*1024)
-            .withClassRegistration(Message.class, 10), executor);
+            .withExecutoPoolSize(5));
         
-    long start = new Date().getTime();
+    dataService.mapClass(Message.class, 10);
+    
+    long start;
     long end;
     
-    /*_log.info("Inserting messages: ");
+    List<Message> deleteMessageList = new LinkedList<Message>();
+    
+    start = new Date().getTime();
+    _log.info("Inserting messages: ");
     for(int i = 0; i < 20000; i++) {
       Message mess = new Message();
       mess.author = "Myself " + Math.random()*new Date().getTime();
       mess.message = "Message very nice " + Math.random()*new Date().getTime();
       dataService.put(mess);
+      deleteMessageList.add(mess);
     }
-    long end = new Date().getTime();
+    end = new Date().getTime();
     _log.info("Insertion complete! operation took: " + (end - start) + " millis");
-    */
+    
     
     Message mess = new Message();
     mess.author = "Myself " + Math.random()*new Date().getTime();
@@ -128,6 +130,13 @@ public class TinyDBTest {
       
       _log.info("Memory usage after this iteration: " + getMemoryUsage());
     }
+    
+    _log.info("Number of objects stored: " + dataService.getResultSetSize(Message.class));
+    
+    _log.info("About to delete some messages");
+    dataService.deleteAll(deleteMessageList);
+    
+    _log.info("Number of objects stored after deleting: " + dataService.getResultSetSize(Message.class));
     
     dataService.shutdown(true);
     

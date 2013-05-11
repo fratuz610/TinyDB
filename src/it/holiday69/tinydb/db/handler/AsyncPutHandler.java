@@ -20,7 +20,6 @@ import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -35,7 +34,7 @@ public class AsyncPutHandler implements PutHandler<Object> {
   
   private final BitcaskManager _bitcaskManager;
   private final TinyDBMapper _dbMapper;
-  private ExecutorService _putExecutor;
+  private final ExecutorService _putExecutor;
   private final LinkedBlockingQueue<Object> _workingQueue = new LinkedBlockingQueue<Object>();
   
   private boolean _shutdown = false;
@@ -45,7 +44,9 @@ public class AsyncPutHandler implements PutHandler<Object> {
     _dbMapper = dbMapper;
     
     _putExecutor = executor;
-    _putExecutor.submit(new PutWorker());
+    synchronized(_putExecutor) {
+      _putExecutor.submit(new PutWorker());
+    }
   }
   
   @Override
@@ -80,17 +81,17 @@ public class AsyncPutHandler implements PutHandler<Object> {
             break;
           }
           
-          //_log.info("AsyncPutHandler: Polling from working queue");
+          _log.fine("AsyncPutHandler: Polling from working queue");
           
           try {
             obj = _workingQueue.poll(10, TimeUnit.SECONDS);
           } catch(InterruptedException ex) {
-            _log.info("Got Interrupted, setting shutdown flag");
+            _log.fine("Got Interrupted, setting shutdown flag");
             _shutdown = true;
           }
 
           if(obj != null) {
-            //_log.info("AsyncPutHandler: Persising object");
+            _log.fine("AsyncPutHandler: Persising object: " + obj.getClass().getSimpleName());
             _putHandler.put(obj);
           }
           

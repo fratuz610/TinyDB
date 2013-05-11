@@ -72,43 +72,9 @@
 
     -->
     
-    <target name="standalone-jar" depends="clean,jar">
+    <target name="shared-jar" depends="jar">
 
-        <!-- Change the value of this property to be the name of your JAR,
-             minus the .jar extension. It should not have spaces.
-             <property name="module.jar.name" value="MyJarName"/>
-        -->
-        <property name="module.jar.name" value="${application.title}"/>
-
-        <!-- don't edit below this line -->
-        <property name="module.dir" value="dist-standalone"/>
-        <property name="module.jar" value="${module.dir}/${module.jar.name}.jar"/>
-
-        <echo message="Packaging ${application.title} into a single JAR at ${module.jar}"/>
-
-        <buildnumber file="nbproject/build.num"/>
-
-        <jar destfile="${module.dir}/temp_final.jar" filesetmanifest="skip">
-            <zipgroupfileset dir="dist" includes="*.jar"/>
-            <manifest>
-                <attribute name="Implementation-Version" value="${build.number}"/>
-            </manifest>
-        </jar>
-
-        <delete file="${module.jar}"/>
-
-        <zip destfile="${module.jar}">
-            <zipfileset src="${module.dir}/temp_final.jar" 
-            excludes="META-INF/*.SF, META-INF/*.DSA, META-INF/*.RSA"/>
-        </zip>
-
-        <delete file="${module.dir}/temp_final.jar"/>
-
-    </target>
-    
-    <target name="shared-jar" depends="standalone-jar">
-
-        <move file="${module.jar}" tofile="../yeahpoint/shared-java-libs/TinyDB/TinyDB.jar"/>
+        <move file="${dist.jar}" tofile="../../java/shared-libs/TinyDB/TinyDB.jar"/>
         
     </target>
 </project>

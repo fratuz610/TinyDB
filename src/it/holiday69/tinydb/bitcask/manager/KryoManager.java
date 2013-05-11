@@ -19,10 +19,11 @@ package it.holiday69.tinydb.bitcask.manager;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 
@@ -34,11 +35,7 @@ public class KryoManager {
   
   private final Logger _log = Logger.getLogger(KryoManager.class.getSimpleName());
   
-  private BitcaskOptions _options;
-  
-  public KryoManager(BitcaskOptions options) {
-    _options = options;
-  }
+  private final static Map<Class, Integer> _kryoClassMap = new HashMap<Class, Integer>();
   
   /**
    * Serializes an object into a byte array
@@ -68,12 +65,27 @@ public class KryoManager {
     kryo.register(Key.class, 126);
     kryo.register(TreeSet.class, 127);
     
-    for(Class clazz : _options.classMap.keySet()) {
-      int index = _options.classMap.get(clazz);
-      kryo.register(clazz, index);
+    synchronized(_kryoClassMap) {
+      for(Class clazz : _kryoClassMap.keySet()) {
+        int index = _kryoClassMap.get(clazz);
+        kryo.register(clazz, index);
+      }
     }
     
     return kryo;
+  }
+  
+  public static final void mapClass(Class<?> clazz, int index) {
+    
+    if(index < 10)
+      throw new IllegalArgumentException("Valid indexes are from 10");
+    
+    if(index == 126 || index == 127)
+      throw new IllegalArgumentException("Indexed 126 and 127 are reserved and cannot be used");
+        
+     synchronized(_kryoClassMap) {
+      _kryoClassMap.put(clazz, index);
+     }
   }
   
   

@@ -272,7 +272,8 @@ public class GetHandler {
       // we check if the order is on the any field
       // we make sure we don't order for fields that are NOT indexed
       if(!classInfo.indexedFieldNameList.contains(orderFilter.getFieldName()))
-        throw new RuntimeException("The field: '" + orderFilter.getFieldName() + "' is not indexed and cannot be used in a query");
+        throw new RuntimeException("The field: '" + orderFilter.getFieldName() + "' is not indexed and cannot be used in a query for entity: '" + classOfT.getSimpleName() 
+                + "'. Indexed fields are: " + Arrays.deepToString(classInfo.indexedFieldNameList.toArray(new String[0])));
 
       _log.finer("Imposing order by field: " + orderFilter.getFieldName());
       

@@ -18,19 +18,18 @@ package it.holiday69.tinydb.db;
 
 import it.holiday69.dataservice.DataService;
 import it.holiday69.dataservice.query.Query;
-import it.holiday69.tinydb.bitcask.BitcaskOptions;
+import it.holiday69.tinydb.bitcask.manager.KryoManager;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.handler.AsyncPutHandler;
 import it.holiday69.tinydb.db.handler.DeleteHandler;
 import it.holiday69.tinydb.db.handler.GetHandler;
 import it.holiday69.tinydb.db.handler.PutHandler;
 import it.holiday69.tinydb.db.handler.SyncPutHandler;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 /**
@@ -46,18 +45,13 @@ public class TinyDBDataService extends DataService {
   private final PutHandler _putHandler;
   private final GetHandler _getHandler;
   private final DeleteHandler _deleteHandler;
-  private final ScheduledExecutorService _executor;
   
-  private final Map<Class, Integer> _kryoClassMap = Collections.synchronizedMap(new HashMap<Class, Integer>());
-  
-  public TinyDBDataService(BitcaskOptions options, ScheduledExecutorService executor) {
+  public TinyDBDataService(TinyDBOptions tinyDBOptions, ScheduledExecutorService executor) {
     
-    _executor = executor;
-    
-    _bitcaskManager = new BitcaskManager(options, executor);
+    _bitcaskManager = new BitcaskManager(tinyDBOptions.bitcaskOptions, executor);
     _dbMapper = new TinyDBMapper();
     
-    if(options.asyncPuts)
+    if(tinyDBOptions.asyncUpdates)
       _putHandler = new AsyncPutHandler(_bitcaskManager, _dbMapper, executor);
     else
       _putHandler = new SyncPutHandler(_bitcaskManager, _dbMapper);
@@ -67,19 +61,19 @@ public class TinyDBDataService extends DataService {
   }
   
   public TinyDBDataService(ScheduledExecutorService executor) {
-    this(new BitcaskOptions(), executor);
+    this(new TinyDBOptions(), executor);
   }
   
-  public TinyDBDataService(BitcaskOptions options) {
-    this(options, Executors.newScheduledThreadPool(5));
+  public TinyDBDataService(TinyDBOptions options) {
+    this(options, Executors.newScheduledThreadPool(options.executorPoolSize, new DBThreadFactory()));
   }
   
   public TinyDBDataService() {
-    this(new BitcaskOptions(), Executors.newScheduledThreadPool(5));
+    this(new TinyDBOptions());
   }
   
-  public void register(Class<?> clazz, int index) {
-    _kryoClassMap.put(clazz, index);
+  public void mapClass(Class<?> clazz, int index) {
+    KryoManager.mapClass(clazz, index);
   }
   
   @Override
@@ -170,5 +164,18 @@ public class TinyDBDataService extends DataService {
   public void shutdown(boolean compact) {
     _bitcaskManager.shutdown(compact);
     _putHandler.shutdown();
+  }
+  
+  private static class DBThreadFactory implements ThreadFactory {
+
+    private final ThreadGroup tg = new ThreadGroup("TinyDB");
+    
+    private final AtomicInteger _atomicCounter = new AtomicInteger(0);
+    
+    @Override
+    public Thread newThread(Runnable r) {
+      return new Thread(tg, r, "TinyDB-" + _atomicCounter.addAndGet(1));
+    }
+    
   }
 }

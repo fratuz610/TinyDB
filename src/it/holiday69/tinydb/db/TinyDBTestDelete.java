@@ -16,17 +16,12 @@
 
 package it.holiday69.tinydb.db;
 
-import it.holiday69.dataservice.query.OrderType;
-import it.holiday69.dataservice.query.Query;
-import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import it.holiday69.tinydb.db.annotations.Id;
 import it.holiday69.tinydb.db.annotations.Indexed;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.Date;
-import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.LogManager;
@@ -57,12 +52,14 @@ public class TinyDBTestDelete {
     FileInputStream configFile = new FileInputStream("logging.properties");
     LogManager.getLogManager().readConfiguration(configFile);
         
-    TinyDBDataService dataService = new TinyDBDataService(new BitcaskOptions()
+    TinyDBDataService dataService = new TinyDBDataService(new TinyDBOptions()
             .withCompactEvery(10, TimeUnit.MINUTES)
             .withRecordPerFile(5000)
-            .withAsyncPuts(false)
-            .withCacheSize(8*1024*1024)
-            .withClassRegistration(Message.class, 10), new ScheduledThreadPoolExecutor(2));
+            .withAsyncUpdates(false)
+            .withCacheSize(8*1024*1024),
+            new ScheduledThreadPoolExecutor(2));
+    
+    dataService.mapClass(Message.class, 10);
     
     _log.info("Inserting message: ");
     

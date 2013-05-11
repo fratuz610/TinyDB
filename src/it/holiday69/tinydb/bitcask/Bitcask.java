@@ -90,13 +90,10 @@ public class Bitcask implements SortedMap<Key, Object> {
     // we initialize the append && get manager
     _appendManager = new AppendManager(_dbName, _options, _fileLockManager);
     _getManager = new GetManager(_fileLockManager);
-    _cacheManager = new CacheManager(_dbName, _options);
-    _kryoManager = new KryoManager(_options);
+    _cacheManager = new CacheManager(_options);
+    _kryoManager = new KryoManager();
     
     if(_options.autoCompact ) {
-      
-      if(_executor == null)
-        _executor = Executors.newSingleThreadScheduledExecutor();
       
       _log.fine("Autocompact enabled every: " + _options.compactFrequency + " " + _options.compactTimeUnit);
       
@@ -106,12 +103,16 @@ public class Bitcask implements SortedMap<Key, Object> {
         @Override
         public void run() {
           _log.info("Shutting down executor");
-          _executor.shutdownNow();
+          synchronized(_executor) {
+            _executor.shutdownNow();
+          }
         }
       }));
       
       // we schedule the read autoCompact db task
-      _executor.scheduleWithFixedDelay(_readCompactDBTask, _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
+      synchronized(_executor) {
+        _executor.scheduleWithFixedDelay(_readCompactDBTask, _options.compactFrequency, _options.compactFrequency, _options.compactTimeUnit);
+      }
     } else {
       
       _log.fine("Autocompact disabled");
@@ -427,8 +428,11 @@ public class Bitcask implements SortedMap<Key, Object> {
   public void shutdown(boolean compact) {
     _log.fine("Shutting down bitcask: '" + _dbName + "'");
     
-    if(_executor != null)
-      _executor.shutdownNow();
+    if(_executor != null) {
+      synchronized(_executor) {
+        _executor.shutdownNow();
+      }
+    }
     
     if(compact) {
       if(_readCompactDBTask.isRunning()) {

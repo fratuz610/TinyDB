@@ -76,6 +76,13 @@ public class DBFileParser {
         if(_keyClass == null)
           _keyClass = record.key.keyValue().getClass();
         
+        // empty key records result in 
+        if(record.keyRecord.valueSize == 0) {
+          retMap.remove(record.key);
+          continue;
+        }
+        
+        // we just add the record mapping
         retMap.put(record.key, record.keyRecord);
       }
       
