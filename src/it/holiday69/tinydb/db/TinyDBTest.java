@@ -41,11 +41,13 @@ public class TinyDBTest {
     @Indexed public String author;
     public String message;
     @Indexed public long timestamp = new Date().getTime();
-    
+    @Indexed public List<String> tagList = new LinkedList<String>();
+
     @Override
     public String toString() {
-      return "Message{" + "messageId=" + messageId + ", author=" + author + ", message=" + message + ", timestamp=" + timestamp + '}';
+      return "Message{" + "messageId=" + messageId + ", author=" + author + ", message=" + message + ", timestamp=" + timestamp + ", tagList=" /*+ tagList*/ + '}';
     }
+    
   }
   
   private static final Logger _log = Logger.getLogger(TinyDBTest.class.getSimpleName());
@@ -59,7 +61,8 @@ public class TinyDBTest {
             .withCompactEvery(10, TimeUnit.MINUTES)
             .withRecordPerFile(5000)
             .withCacheSize(8*1024*1024)
-            .withExecutorPoolSize(5));
+            .withExecutorPoolSize(5)
+            .withAsyncUpdates(false));
         
     dataService.mapClass(Message.class, 10);
     
@@ -70,10 +73,12 @@ public class TinyDBTest {
     
     start = new Date().getTime();
     _log.info("Inserting messages: ");
-    for(int i = 0; i < 20000; i++) {
+    for(int i = 0; i < 2000; i++) {
       Message mess = new Message();
       mess.author = "Myself " + Math.random()*new Date().getTime();
       mess.message = "Message very nice " + Math.random()*new Date().getTime();
+      mess.tagList.add("tag1");
+      //mess.tagList.add("tag2");
       dataService.put(mess);
       deleteMessageList.add(mess);
     }
@@ -84,6 +89,8 @@ public class TinyDBTest {
     Message mess = new Message();
     mess.author = "Myself " + Math.random()*new Date().getTime();
     mess.message = "Message very nice " + Math.random()*new Date().getTime();
+    mess.tagList.add("tag1");
+    //mess.tagList.add("tag2");
     dataService.put(mess);
     
     start = new Date().getTime();
@@ -116,7 +123,8 @@ public class TinyDBTest {
       end = new Date().getTime();
       _log.info("All messages retrieved! operation took: " + (end - start) + " millis");
       
-      Message oneMess = messList.get((int)(30*Math.random()));
+      /*
+      Message oneMess = messList.get((int)(5*Math.random()));
       
       start = new Date().getTime();
       oneMess = dataService.get(oneMess.messageId, Message.class);
@@ -127,14 +135,17 @@ public class TinyDBTest {
       oneMess = dataService.get("timestamp", oneMess.timestamp, Message.class);
       end = new Date().getTime();
       _log.info("Simple Get on the a field key: operation took: " + (end - start) + " millis");
-      
+      */
       _log.info("Memory usage after this iteration: " + getMemoryUsage());
     }
     
     _log.info("Number of objects stored: " + dataService.getResultSetSize(Message.class));
     
     _log.info("About to delete some messages");
-    dataService.deleteAll(deleteMessageList);
+    for(Message message : deleteMessageList) {
+      if(message.messageId != null)
+        dataService.delete(message);
+    }
     
     _log.info("Number of objects stored after deleting: " + dataService.getResultSetSize(Message.class));
     

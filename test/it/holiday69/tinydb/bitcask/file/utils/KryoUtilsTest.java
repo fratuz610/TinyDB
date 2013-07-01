@@ -5,6 +5,8 @@
 package it.holiday69.tinydb.bitcask.file.utils;
 
 import java.io.ByteArrayInputStream;
+import java.util.LinkedList;
+import java.util.List;
 import org.junit.After;
 import org.junit.AfterClass;
 import static org.junit.Assert.*;
@@ -119,7 +121,23 @@ public class KryoUtilsTest {
     System.out.println("testClassAndObject");
     String value = new String("hello");
     byte[] result = KryoUtils.writeClassAndObject(value);
+    System.out.println("'hello' string serialized in " + result.length + " bytes");
     String readBack = (String) KryoUtils.readClassAndObject(new ByteArrayInputStream(result));
+    assertEquals(value, readBack);
+  }
+  
+  /**
+   * Test of readClassAndObject method, of class KryoUtils.
+   */
+  @Test
+  public void testList() {
+    System.out.println("testClassAndObject");
+    List<String> value = new LinkedList<String>();
+    value.add("Hello");
+    value.add("world");
+    byte[] result = KryoUtils.writeClassAndObject(value);
+    System.out.println("Sample list serialized in " + result.length + " bytes");
+    LinkedList<String> readBack = (LinkedList) KryoUtils.readClassAndObject(new ByteArrayInputStream(result));
     assertEquals(value, readBack);
   }
 

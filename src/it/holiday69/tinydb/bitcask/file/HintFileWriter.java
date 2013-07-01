@@ -16,6 +16,7 @@
 
 package it.holiday69.tinydb.bitcask.file;
 
+import it.holiday69.tinydb.bitcask.file.utils.SnappyHelper;
 import it.holiday69.tinydb.bitcask.manager.CacheManager;
 import it.holiday69.tinydb.bitcask.manager.GetManager;
 import it.holiday69.tinydb.bitcask.vo.Key;
@@ -30,6 +31,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
+import org.iq80.snappy.Snappy;
 
 /**
  *
@@ -38,6 +40,7 @@ import java.util.logging.Logger;
 public class HintFileWriter {
   
   private final Logger _log = Logger.getLogger(HintFileWriter.class.getSimpleName());
+  private final SnappyHelper _snappyHelper = new SnappyHelper();
   
   private File _hintFile;
   private File _tempHintFile;

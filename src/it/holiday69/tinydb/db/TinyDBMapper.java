@@ -50,7 +50,11 @@ public class TinyDBMapper {
   // Get / set id field values
   public Comparable getIDFieldValue(Object obj) {
     ClassInfo classInfo = getClassInfo(obj.getClass());
-    return getFieldValue(obj, classInfo.idFieldName);
+    
+    if(getFieldValue(obj, classInfo.idFieldName).isEmpty())
+      return null;
+    else
+      return getFieldValue(obj, classInfo.idFieldName).iterator().next();
   }
   
   public void setIDFieldValue(Object obj, Object fieldValue) {
@@ -65,12 +69,31 @@ public class TinyDBMapper {
     
   }
   
-  public static Comparable getFieldValue(Object obj, String fieldName) {
+  public static Collection<Comparable> getFieldValue(Object obj, String fieldName) {
+    
+    if(obj == null)
+      throw new NullPointerException("TinyDBMapper:getFieldValue: Null object passed");
     
     try {
-      return (Comparable) obj.getClass().getField(fieldName).get(obj);
+      Object fieldValue = obj.getClass().getField(fieldName).get(obj);
+      
+      if(fieldValue == null)
+        return new ArrayList<Comparable>();
+      
+      if(fieldValue instanceof Collection)
+        return (Collection<Comparable>) fieldValue; 
+      else if(fieldValue instanceof Comparable) {
+        List<Comparable> retList = new ArrayList<Comparable>();
+        retList.add((Comparable) fieldValue);
+        return retList;
+      } else
+        throw new RuntimeException("Unindexable field '" + fieldName + "' because the field value is not a Collection or a Comparable object");
+
     } catch(Throwable th) {
-      throw new RuntimeException("Unable to access field " + fieldName + " for class " + obj.getClass() + " because: " + th.getMessage());
+      if(obj != null)
+        throw new RuntimeException("Unable to access field " + fieldName + " for class " + obj.getClass() + " because: " + th.getMessage());
+      else
+        throw new RuntimeException("Unable to access field " + fieldName + " for class " + obj + " because: " + th.getMessage());
     }
   }
   

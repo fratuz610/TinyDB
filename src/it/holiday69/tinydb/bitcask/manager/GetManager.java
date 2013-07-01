@@ -21,6 +21,7 @@ import it.holiday69.tinydb.bitcask.manager.FileLockManager;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.FileInputStream;
 import java.util.logging.Logger;
+import org.iq80.snappy.Snappy;
 
 /**
  *
@@ -58,7 +59,8 @@ public class GetManager {
       fis.read(ret);
       fis.close();
       
-      return ret;
+      return Snappy.uncompress(ret, 0, ret.length);
+      
     } catch(Throwable th) {
       _log.severe(ExceptionUtils.getFullExceptionInfo(th));
       throw new RuntimeException("Unable to retrieve record from file: " + keyRecord.file + " : ", th);

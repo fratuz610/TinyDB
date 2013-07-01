@@ -27,6 +27,7 @@ public class BitcaskOptions {
   
   public String dbFolder = new File(".", "data").getAbsolutePath();
   public int recordPerFile = 100;
+  public long maxFileSize = 16*1024*1024;
   public int compactFrequency = 5;
   public TimeUnit compactTimeUnit = TimeUnit.MINUTES;
   public int cacheSize = 1024 * 1024; // 512 kb cache
@@ -36,6 +37,12 @@ public class BitcaskOptions {
   public BitcaskOptions withRecordPerFile(int recordPerFile) { 
     if(recordPerFile < 10) recordPerFile = 10;
     this.recordPerFile = recordPerFile; 
+    return this; 
+  }
+  
+  public BitcaskOptions withMaxFileSize(long maxFileSize) { 
+    if(maxFileSize < 1024*1024) maxFileSize = 1024*1024; // min 1mb
+    this.maxFileSize = maxFileSize; 
     return this; 
   }
   public BitcaskOptions withCompactEvery(int frequency, TimeUnit timeUnit) { 

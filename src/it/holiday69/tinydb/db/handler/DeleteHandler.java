@@ -47,6 +47,9 @@ public class DeleteHandler {
     
     Comparable entityKeyVal = _dbMapper.getIDFieldValue(delObj);
     
+    if(entityKeyVal == null)
+      throw new RuntimeException("Unable to delete object with null key!");
+    
     deleteFromKey(new Key().fromComparable(entityKeyVal), delObj.getClass());
   }
   
@@ -72,6 +75,9 @@ public class DeleteHandler {
     // we remove the data
     T delObj = (T) dataMap.remove(key);
     
+    if(delObj == null)
+      return;
+    
     // we remove all references in the indexes
     ClassInfo classInfo = _dbMapper.getClassInfo(classOfT);
     
@@ -80,14 +86,17 @@ public class DeleteHandler {
       
       Bitcask indexTreeMap = _bitcaskManager.getIndexDB(classOfT, indexedFieldName);
       
-      Key indexKey = new Key().fromComparable(TinyDBMapper.getFieldValue(delObj, indexedFieldName));
-      
-      TreeSet<Key> linkedKeyList = (TreeSet<Key>) indexTreeMap.get(indexKey);
-      
-      if(linkedKeyList != null)
-        linkedKeyList.remove(key);
-      
-      indexTreeMap.put(indexKey, linkedKeyList);
+      for(Comparable fieldValue : TinyDBMapper.getFieldValue(delObj, indexedFieldName)) {
+        
+        Key indexKey = new Key().fromComparable(fieldValue);
+
+        TreeSet<Key> linkedKeyList = (TreeSet<Key>) indexTreeMap.get(indexKey);
+
+        if(linkedKeyList != null)
+          linkedKeyList.remove(key);
+
+        indexTreeMap.put(indexKey, linkedKeyList);
+      }
     }
     
   }

@@ -426,7 +426,7 @@ public class Bitcask implements SortedMap<Key, Object> {
   }
   
   public void shutdown(boolean compact) {
-    _log.fine("Shutting down bitcask: '" + _dbName + "'");
+    _log.fine(_dbName + ": Shutting down...");
     
     if(_executor != null) {
       synchronized(_executor) {
@@ -436,14 +436,14 @@ public class Bitcask implements SortedMap<Key, Object> {
     
     if(compact) {
       if(_readCompactDBTask.isRunning()) {
-        _log.fine("Final DB compacting not necessary (one already in progress)");
+        _log.fine(_dbName + ": Final DB compacting not necessary (one already in progress)");
       } else {
-        _log.fine("Final DB compacting");
+        _log.fine(_dbName + ": Final DB compacting");
         _readCompactDBTask.run();
       } 
     }
     
-    _log.fine("Shutdown complete");
+    _log.fine(_dbName + ": Shutdown complete");
   }
 
   

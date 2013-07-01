@@ -101,9 +101,9 @@ public class AppendManager {
       
       _log.fine("Appended record with info " + appendInfo);
       
-      if(_currentRecordNumber >= _options.recordPerFile) {
+      if(_currentRecordNumber >= _options.recordPerFile || _currentFilePos > _options.maxFileSize) {
         
-        _log.fine("Reached the limit of " + _options.recordPerFile + " creating a new file: " + (_currentFileNumber+1));
+        _log.fine("Reached the limit of " + _options.recordPerFile + " records or size ("+_options.maxFileSize+" bytes) creating a new file: " + (_currentFileNumber+1));
          
         // we move to another file
         _currentFos.close();

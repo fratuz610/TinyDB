@@ -33,6 +33,12 @@ public class TinyDBOptions {
     this.bitcaskOptions.recordPerFile = recordPerFile; 
     return this; 
   }
+  
+  public TinyDBOptions withMaxFileSize(long maxFileSize) { 
+    this.bitcaskOptions.maxFileSize = maxFileSize; 
+    return this; 
+  }
+  
   public TinyDBOptions withCompactEvery(int frequency, TimeUnit timeUnit) { 
     this.bitcaskOptions.compactFrequency = frequency; 
     this.bitcaskOptions.compactTimeUnit = timeUnit; 

@@ -23,6 +23,9 @@ import com.esotericsoftware.kryo.serializers.FieldSerializer;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.TreeSet;
 
 /**
@@ -140,6 +143,9 @@ public class KryoUtils {
     Kryo kryo = new Kryo();
     kryo.register(Key.class);
     kryo.register(TreeSet.class);
+    kryo.register(LinkedList.class);
+    kryo.register(ArrayList.class);
+    kryo.register(HashMap.class);
     return kryo;
   }
   

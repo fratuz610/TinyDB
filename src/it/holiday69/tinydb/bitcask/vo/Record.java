@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Date;
 import java.util.zip.CRC32;
+import org.iq80.snappy.Snappy;
 
 /**
  *
@@ -41,10 +42,13 @@ public class Record {
   
   public Record(byte[] key, byte[] value) {
     
+    // we compress with snappy
+    byte[] compressedValue = Snappy.compress(value);
+    
     this.key = key;
-    this.value = value;
+    this.value = compressedValue;
     this.keySize = key.length;
-    this.valueSize = value.length;
+    this.valueSize = compressedValue.length;
     this.ts = new Date().getTime();
     
     byte[] tsBa = KryoUtils.writeLong(ts);
@@ -58,7 +62,7 @@ public class Record {
       bout.write(keySizeBa);
       bout.write(valueSizeBa);
       bout.write(key);
-      bout.write(value);
+      bout.write(compressedValue);
       crcData = bout.toByteArray();
       
       CRC32 crc32 = new CRC32();
@@ -87,11 +91,7 @@ public class Record {
 
   @Override
   public String toString() {
-    return "Record{" + "ts=" + ts + ", keySize=" + keySize + ", valueSize=" + valueSize + ", key=" + key + ", value=" + value + '}';
+    return "Record{" + "ts=" + ts + ", keySize=" + keySize + ", valueSize=" + valueSize + ", key=" + key.length + " bytes, value=" + value.length + " bytes}";
   }
-  
-  
-  
-  
   
 }

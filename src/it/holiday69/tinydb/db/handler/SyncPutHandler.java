@@ -75,18 +75,27 @@ public class SyncPutHandler implements PutHandler<Object> {
       
       Bitcask indexTreeMap = _bitcaskManager.getIndexDB(newObj.getClass(), indexedFieldName);
       
-      Key indexKey = new Key().fromComparable(TinyDBMapper.getFieldValue(newObj, indexedFieldName));
+      if(TinyDBMapper.getFieldValue(newObj, indexedFieldName) == null)
+        throw new RuntimeException("Field " + indexedFieldName + " is indexed, null values are not allowed");
       
-      if(!indexTreeMap.containsKey(indexKey))
-        indexTreeMap.put(indexKey, new TreeSet<Key>());
-      
-      TreeSet<Key> linkedKeySet = (TreeSet<Key>) indexTreeMap.get(indexKey);
-      
-      _log.fine("Analyzing indexedField: '" + indexedFieldName + "' => "+TinyDBMapper.getFieldValue(newObj, indexedFieldName)+" cardinality so far: " + linkedKeySet.size());
-      
-      linkedKeySet.add(primaryKey);
-      
-      indexTreeMap.put(indexKey, new TreeSet<Key>(linkedKeySet));
+      // cycles through all the values of a field (can be one or more)
+      for(Comparable fieldValue : TinyDBMapper.getFieldValue(newObj, indexedFieldName)) {
+        
+        _log.fine("Field: " + indexedFieldName + " value: " + fieldValue);
+        
+        Key indexKey = new Key().fromComparable(fieldValue);
+
+        if(!indexTreeMap.containsKey(indexKey))
+          indexTreeMap.put(indexKey, new TreeSet<Key>());
+
+        TreeSet<Key> linkedKeySet = (TreeSet<Key>) indexTreeMap.get(indexKey);
+
+        _log.fine("Analyzing indexedField: '" + indexedFieldName + "' => '"+fieldValue+"'. Cardinality so far: " + linkedKeySet.size());
+
+        linkedKeySet.add(primaryKey);
+
+        indexTreeMap.put(indexKey, new TreeSet<Key>(linkedKeySet));
+      }
     }
     
   }
