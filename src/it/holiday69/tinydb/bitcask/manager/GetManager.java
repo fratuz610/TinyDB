@@ -44,14 +44,15 @@ public class GetManager {
   public byte[] retrieveRecord(KeyRecord keyRecord) {
     
     try {
+      
+      if(keyRecord.valueSize == 0)
+        return null;
+      
       // we lock the file for reading if we can
       if(_fileLockManager != null)
         _fileLockManager.readLockFile(keyRecord.file);
       
       FileInputStream fis = new FileInputStream(keyRecord.file);
-      
-      if(keyRecord.valueSize == 0)
-        return null;
       
       byte[] ret = new byte[(int)keyRecord.valueSize];
       

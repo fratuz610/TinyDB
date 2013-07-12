@@ -17,6 +17,7 @@
 package it.holiday69.tinydb.db.handler;
 
 import it.holiday69.dataservice.query.FieldFilter;
+import it.holiday69.dataservice.query.FieldFilterType;
 import it.holiday69.dataservice.query.OrderFilter;
 import it.holiday69.dataservice.query.OrderType;
 import it.holiday69.dataservice.query.Query;
@@ -158,17 +159,21 @@ public class GetHandler {
     return finalKeyList;
   }
   
-  private <T> List<Key> applyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+  private <T> Set<Key> applyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
 
     ClassInfo classInfo = _dbMapper.getClassInfo(classOfT);
     
     if(fieldFilter.getFieldName().equals(classInfo.idFieldName))
       return applyPrimaryKeyFilter(fieldFilter, classOfT);
     else
-      return applyFieldFilter(fieldFilter, classOfT);
+      if(fieldFilter.getFieldValue() instanceof Collection)
+        return applyCollectionFieldFilter(fieldFilter, classOfT);
+      else
+        return applyScalarFieldFilter(fieldFilter, classOfT);
+      
   }
   
-  private <T> List<Key> applyFieldFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+  private <T> Set<Key> applyScalarFieldFilter(FieldFilter fieldFilter, Class<T> classOfT) {
     
     ClassInfo classInfo = _dbMapper.getClassInfo(classOfT);
     
@@ -176,7 +181,7 @@ public class GetHandler {
     if(!classInfo.indexedFieldNameList.contains(fieldFilter.getFieldName()))
       throw new RuntimeException("The field: '" + fieldFilter.getFieldName() + "' is not indexed and cannot be used in a query");
     
-    List<Key> extractKeyList = new LinkedList<Key>();
+    Set<Key> extractKeyList = new HashSet<Key>();
       
     Bitcask fieldIndexDB = _bitcaskManager.getIndexDB(classOfT, fieldFilter.getFieldName());
     
@@ -203,7 +208,7 @@ public class GetHandler {
       case LOWER_THAN_INC:
         inclusive = true;
         subsetIndexTreeMap.putAll(fieldIndexDB.headMap(fieldValueKey));
-        break;
+        break;  
     }
     
     // flattens the structure
@@ -217,9 +222,36 @@ public class GetHandler {
     return extractKeyList;
   }
   
-  private <T> List<Key> applyPrimaryKeyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+  private <T> Set<Key> applyCollectionFieldFilter(FieldFilter fieldFilter, Class<T> classOfT) {
     
-    List<Key> extractKeyList = new LinkedList<Key>();
+    ClassInfo classInfo = _dbMapper.getClassInfo(classOfT);
+    
+    // we make sure we don't query for fields that are not indexed
+    if(!classInfo.indexedFieldNameList.contains(fieldFilter.getFieldName()))
+      throw new RuntimeException("The field: '" + fieldFilter.getFieldName() + "' is not indexed and cannot be used in a query");
+    
+    if(fieldFilter.getFieldFilterType() != FieldFilterType.IN)
+      throw new RuntimeException("Collections are allowed as filter values only if used with an IN filter");
+    
+    Set<Key> extractKeyList = new HashSet<Key>();
+      
+    Bitcask fieldIndexDB = _bitcaskManager.getIndexDB(classOfT, fieldFilter.getFieldName());
+    
+    Collection<Comparable> fieldValueList = (Collection<Comparable>) fieldFilter.getFieldValue();
+    
+    for(Comparable fieldValue : fieldValueList) {
+      Key fieldValueKey = new Key().fromComparable(fieldValue);
+      
+      if(fieldIndexDB.containsKey(fieldValueKey))
+        extractKeyList.addAll((TreeSet<Key>) fieldIndexDB.get(fieldValueKey)); 
+    }
+    
+    return extractKeyList;
+  }
+  
+  private <T> Set<Key> applyPrimaryKeyFilter(FieldFilter fieldFilter, Class<T> classOfT) {
+    
+    Set<Key> extractKeyList = new HashSet<Key>();
     
     Bitcask indexDB = _bitcaskManager.getEntityDB(classOfT);
     
