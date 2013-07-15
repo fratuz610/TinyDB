@@ -22,8 +22,6 @@ import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
 import it.holiday69.tinydb.db.vo.ClassInfo;
-import java.util.NavigableMap;
-import java.util.SortedMap;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 

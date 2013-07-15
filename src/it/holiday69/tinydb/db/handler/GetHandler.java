@@ -334,7 +334,7 @@ public class GetHandler {
       
       long end = new Date().getTime();
       
-      _log.info("Applying order time: " + (end-start) + " secs");
+      _log.fine("Applying order time: " + (end-start) + " millisecs");
       
       _log.finer("After imposing order on "+orderFilter.getFieldName()+" extractKeyList has " + orderedKeyList.size() + " elements");
     }

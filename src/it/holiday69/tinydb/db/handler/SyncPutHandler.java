@@ -21,6 +21,7 @@ import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
 import it.holiday69.tinydb.db.vo.ClassInfo;
+import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 
@@ -42,7 +43,16 @@ public class SyncPutHandler implements PutHandler<Object> {
   
   @Override
   public <T> void put(T newObj) {
-    
+   
+    try {
+      internalPut(newObj);
+    } catch(Throwable ex) {
+      _log.info("Put failed: " + ExceptionUtils.getDisplableExceptionInfo(ex));
+    }
+  }
+  
+  private <T> void internalPut(T newObj) {
+        
     ClassInfo classInfo = _dbMapper.getClassInfo(newObj.getClass());
     
     Comparable entityKeyVal = _dbMapper.getIDFieldValue(newObj);
@@ -89,7 +99,7 @@ public class SyncPutHandler implements PutHandler<Object> {
           indexTreeMap.put(indexKey, new TreeSet<Key>());
 
         TreeSet<Key> linkedKeySet = (TreeSet<Key>) indexTreeMap.get(indexKey);
-
+        
         _log.fine("Analyzing indexedField: '" + indexedFieldName + "' => '"+fieldValue+"'. Cardinality so far: " + linkedKeySet.size());
 
         linkedKeySet.add(primaryKey);
@@ -102,6 +112,6 @@ public class SyncPutHandler implements PutHandler<Object> {
 
   @Override
   public void shutdown() {
-    // do nothing
+      // do nothing
   }
 }

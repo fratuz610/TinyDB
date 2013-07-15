@@ -24,7 +24,9 @@ import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
 import it.holiday69.tinydb.bitcask.manager.FileLockManager;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Date;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
 /**
@@ -46,6 +48,8 @@ public class AppendManager {
   private BitcaskOptions _options;
   private FileLockManager _fileLockManager;
   
+  private AtomicBoolean _isShutdown = new AtomicBoolean(false);
+  
   public AppendManager(String dbName, BitcaskOptions options, FileLockManager fileLockManager) {
     
     _dbName = dbName;
@@ -64,6 +68,9 @@ public class AppendManager {
   }
   
   public AppendInfo appendRecord(Key key, byte[] data) {
+    
+    if(_isShutdown.get())
+      throw new RuntimeException("Unable to append record to file: " + _currentFile + " : as this append manager has already shutdown!");
     
     try {
       Record record = new Record(key.toByteArray(), data);
@@ -119,17 +126,20 @@ public class AppendManager {
       throw new RuntimeException("Unable to append record to file: " + _currentFile + " : ", th);
     }
   }
-  /*
-  public void flush() {
+  
+  public void shutdown() {
+    
+    _isShutdown.set(true);
     
     try {
-    if(_currentFos != null)
-      _currentFos.flush();
+      _currentFos.close();
+      _currentFos = null;
+      _fileLockManager.setAppendFile(null);
     } catch(Throwable th) {
-      throw new RuntimeException("Unable to flush on disk to: " + _currentFile, th);
+      
     }
-  }*/
-  
+  }
+    
   private int getMaxFileNumber() {
     
     // we scan the target folder

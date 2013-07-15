@@ -26,6 +26,7 @@ import it.holiday69.tinydb.db.handler.GetHandler;
 import it.holiday69.tinydb.db.handler.PutHandler;
 import it.holiday69.tinydb.db.handler.SyncPutHandler;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -46,8 +47,11 @@ public class TinyDBDataService extends DataService {
   private final GetHandler _getHandler;
   private final DeleteHandler _deleteHandler;
   
+  private final ExecutorService _executor;
+  
   public TinyDBDataService(TinyDBOptions tinyDBOptions, ScheduledExecutorService executor) {
     
+    _executor = executor;
     _bitcaskManager = new BitcaskManager(tinyDBOptions.bitcaskOptions, executor);
     _dbMapper = new TinyDBMapper();
     
@@ -162,6 +166,9 @@ public class TinyDBDataService extends DataService {
   }
   
   public void shutdown(boolean compact) {
+    synchronized(_executor) {
+      _executor.shutdown();
+    }
     _bitcaskManager.shutdown(compact);
     _putHandler.shutdown();
   }

@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -42,8 +43,9 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
@@ -55,6 +57,8 @@ import java.util.logging.Logger;
 public class Bitcask implements SortedMap<Key, Object> {
   
   private final Logger _log = Logger.getLogger(Bitcask.class.getSimpleName());
+  
+  private AtomicBoolean _isShutdown = new AtomicBoolean(false);
   
   private File _dbFolder;
   private String _dbName;
@@ -70,7 +74,7 @@ public class Bitcask implements SortedMap<Key, Object> {
   
   private final ReadWriteLock _keyMapLock = new ReentrantReadWriteLock();
   private final FileLockManager _fileLockManager = new FileLockManager();
-  private ScheduledExecutorService _executor;
+  private final ScheduledExecutorService _executor;
   private final ReadCompactDBTask _readCompactDBTask = new ReadCompactDBTask();
   
   public Bitcask(String dbName, BitcaskOptions options, ScheduledExecutorService executor) {
@@ -102,10 +106,8 @@ public class Bitcask implements SortedMap<Key, Object> {
 
         @Override
         public void run() {
-          _log.info("Shutting down executor");
-          synchronized(_executor) {
-            _executor.shutdownNow();
-          }
+          _isShutdown.set(true);
+          shutdown(false);
         }
       }));
       
@@ -128,6 +130,9 @@ public class Bitcask implements SortedMap<Key, Object> {
     
   @Override
   public Comparator<? super Key> comparator() {
+    
+    if(_isShutdown.get()) return null;
+    
     _keyMapLock.readLock().lock();
     try {
       return _keyRecordMap.comparator();
@@ -138,6 +143,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public SortedMap<Key, Object> subMap(Key fromKey, Key toKey) {
+    
+    if(_isShutdown.get()) return new TreeMap<Key, Object>();
+    
     _keyMapLock.readLock().lock();
     
     TreeMap<Key, Object> ret = new TreeMap<Key, Object>();
@@ -156,6 +164,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public SortedMap<Key, Object> headMap(Key toKey) {
+    
+    if(_isShutdown.get()) return new TreeMap<Key, Object>();
+    
     _keyMapLock.readLock().lock();
     
     TreeMap<Key, Object> ret = new TreeMap<Key, Object>();
@@ -174,6 +185,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public SortedMap<Key, Object> tailMap(Key fromKey) {
+    
+    if(_isShutdown.get()) return new TreeMap<Key, Object>();
+    
     _keyMapLock.readLock().lock();
     
     TreeMap<Key, Object> ret = new TreeMap<Key, Object>();
@@ -192,6 +206,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public Key firstKey() {
+    
+    if(_isShutdown.get()) return null;
+    
     _keyMapLock.readLock().lock();
     try {
       
@@ -206,6 +223,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public Key lastKey() {
+    
+    if(_isShutdown.get()) return null;
+    
     _keyMapLock.readLock().lock();
     try {
       if(!_keyRecordMap.isEmpty())
@@ -219,6 +239,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public Set<Key> keySet() {
+    
+    if(_isShutdown.get()) return new HashSet<Key>();
+    
     _keyMapLock.readLock().lock();
     try {
       return new TreeSet<Key>(_keyRecordMap.keySet());
@@ -229,6 +252,8 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public Collection<Object> values() {
+    
+    if(_isShutdown.get()) return new LinkedList<Object>();
     
     Set<Key> keySet = keySet();
     
@@ -247,11 +272,15 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public Set<Entry<Key, Object>> entrySet() {
+    
     throw new UnsupportedOperationException("Not supported yet.");
   }
 
   @Override
   public int size() {
+    
+    if(_isShutdown.get()) return 0;
+    
     _keyMapLock.readLock().lock();
     try {
       return _keyRecordMap.size();
@@ -262,6 +291,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public boolean isEmpty() {
+    
+    if(_isShutdown.get()) return true;
+    
     _keyMapLock.readLock().lock();
     try {
       return _keyRecordMap.isEmpty();
@@ -272,6 +304,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public boolean containsKey(Object key) {
+    
+    if(_isShutdown.get()) return false;
+    
     _keyMapLock.readLock().lock();
     try {
       return _keyRecordMap.containsKey(key);
@@ -287,6 +322,8 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public Object get(Object key) {
+    
+    if(_isShutdown.get()) return null;
     
     if(key == null)
       throw new NullPointerException("Null key provided!!");
@@ -349,6 +386,8 @@ public class Bitcask implements SortedMap<Key, Object> {
   @Override
   public Object put(Key key, Object value) {
     
+    if(_isShutdown.get()) return null;
+    
     if(key.keyValue() instanceof String)
       internalPutRecord(new Key().fromString((String) key.keyValue()), _kryoManager.serializeObject(value));
     else if(key.keyValue() instanceof Long)
@@ -390,8 +429,9 @@ public class Bitcask implements SortedMap<Key, Object> {
   @Override
   public Object remove(Object key) {
     
-    // we save an empty record
+    if(_isShutdown.get()) return null;
     
+    // we save an empty record
     _keyMapLock.writeLock().lock();
     try {
       Object obj = get(key);
@@ -417,6 +457,9 @@ public class Bitcask implements SortedMap<Key, Object> {
 
   @Override
   public void clear() {
+    
+    if(_isShutdown.get()) return;
+    
     _keyMapLock.writeLock().lock();
     try {
       _keyRecordMap.clear();
@@ -426,12 +469,14 @@ public class Bitcask implements SortedMap<Key, Object> {
   }
   
   public void shutdown(boolean compact) {
+    
     _log.fine(_dbName + ": Shutting down...");
     
-    if(_executor != null) {
-      synchronized(_executor) {
-        _executor.shutdownNow();
-      }
+    _isShutdown.set(true);
+    
+    // we shut the append manager down
+    synchronized(_appendManager) {
+      _appendManager.shutdown();
     }
     
     if(compact) {
@@ -445,21 +490,26 @@ public class Bitcask implements SortedMap<Key, Object> {
     
     _log.fine(_dbName + ": Shutdown complete");
   }
-
-  
+   
   public class ReadCompactDBTask implements Runnable {
     
-    private boolean _isRunning = false;
+    private AtomicBoolean _isRunning = new AtomicBoolean(false);
 
     private Map<Key, KeyRecord> _tempKeyRecordMap = new HashMap<Key, KeyRecord>();
     
     @Override
     public void run() {
       
+      if(_isShutdown.get()) {
+        _log.info("ReadCompactDBTask aborting because the DB has shutdown");
+        return;
+      }
+        
+      
       try {
         _log.info("ReadCompactDBTask START");
         
-        _isRunning = true;
+        _isRunning.set(true);
 
           // we scan the target folder
         File[] dbFileList = DBFileUtils.getDBFileList(_dbFolder, _dbName);
@@ -569,13 +619,26 @@ public class Bitcask implements SortedMap<Key, Object> {
         // we delete the old files (no longer in use)
         for(File dbFile : workingFileList) {
           
-          // actual file deletion
-          dbFile.delete();
+          if(!_fileLockManager.tryWriteLockFile(dbFile)) {
+            _log.info("File " + dbFile + " is in use, skipping it");
+            continue;
+          }
           
-          // waiting for the file to actually been deleted
-          while(dbFile.exists()) {
-            _log.info("File: " + dbFile + " still exists... waiting...");
-            try { Thread.sleep(100); } catch(InterruptedException ex) { return; };
+          try {
+            // actual file deletion
+            dbFile.delete();
+
+            // waiting for the file to actually been deleted
+            while(dbFile.exists()) {
+              _log.info("File: " + dbFile + " still exists... waiting...");
+              try { 
+                Thread.sleep(500); 
+              } catch(InterruptedException ex) { 
+                return; 
+              };
+            }
+          } finally {
+            _fileLockManager.writeUnlockFile(dbFile);
           }
             
         }
@@ -583,12 +646,12 @@ public class Bitcask implements SortedMap<Key, Object> {
       } catch(Throwable th) {
         _log.warning("Exception while compacting db: " + ExceptionUtils.getFullExceptionInfo(th));
       } finally {
-        _isRunning = false;
+        _isRunning.set(false);
       }
     
     }
     
-    public boolean isRunning() { return _isRunning; } 
+    public boolean isRunning() { return _isRunning.get(); } 
     
     
   }

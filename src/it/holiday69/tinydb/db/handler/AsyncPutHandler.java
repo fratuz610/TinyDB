@@ -22,6 +22,7 @@ import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
 /**
@@ -32,17 +33,14 @@ public class AsyncPutHandler implements PutHandler<Object> {
   
   private final Logger _log = Logger.getLogger(AsyncPutHandler.class.getSimpleName());
   
-  private final BitcaskManager _bitcaskManager;
-  private final TinyDBMapper _dbMapper;
   private final ExecutorService _putExecutor;
   private final LinkedBlockingQueue<Object> _workingQueue = new LinkedBlockingQueue<Object>();
   
-  private boolean _shutdown = false;
-   
+  private final AtomicBoolean _isShutdown = new AtomicBoolean(false);
+  private final SyncPutHandler _putHandler;
+  
   public AsyncPutHandler(BitcaskManager manager, TinyDBMapper dbMapper, ExecutorService executor) {
-    _bitcaskManager = manager;
-    _dbMapper = dbMapper;
-    
+    _putHandler = new SyncPutHandler(manager, dbMapper);
     _putExecutor = executor;
     synchronized(_putExecutor) {
       _putExecutor.submit(new PutWorker());
@@ -57,17 +55,12 @@ public class AsyncPutHandler implements PutHandler<Object> {
   
   @Override
   public void shutdown() {
-    _shutdown = true;
+    _isShutdown.set(true);
+    _workingQueue.clear();
   }
   
   public class PutWorker implements Runnable {
     
-    private final SyncPutHandler _putHandler;
-    
-    public PutWorker() {
-      _putHandler = new SyncPutHandler(_bitcaskManager, _dbMapper);
-    }
-
     @Override
     public void run() {
       
@@ -76,8 +69,8 @@ public class AsyncPutHandler implements PutHandler<Object> {
       
         while(true) {
 
-          if(_shutdown && _workingQueue.isEmpty()) {
-            _log.info("Empty working queue, closing down");
+          if(_isShutdown.get() || Thread.interrupted()) {
+            _log.info("Shutdown triggered, shutting down");
             break;
           }
           
@@ -86,8 +79,8 @@ public class AsyncPutHandler implements PutHandler<Object> {
           try {
             obj = _workingQueue.poll(10, TimeUnit.SECONDS);
           } catch(InterruptedException ex) {
-            _log.fine("Got Interrupted, setting shutdown flag");
-            _shutdown = true;
+            _log.fine("Got Interrupted, closing down");
+            break;
           }
 
           if(obj != null) {
