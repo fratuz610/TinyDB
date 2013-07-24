@@ -345,7 +345,7 @@ public class Bitcask implements SortedMap<Key, Object> {
       return null;
 
     try {
-      return _kryoManager.deserializeObject(new ByteArrayInputStream(rawRecord));
+      return _kryoManager.deserializeObject(rawRecord);
     } catch(KryoException ex) {
       //_log.info("Unable to deserialize value from key: " + key + " marking the object as deleted");
       return null;

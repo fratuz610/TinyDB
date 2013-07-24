@@ -57,6 +57,15 @@ public class KryoManager {
     return getKryo().readClassAndObject(input);
   }
   
+  /**
+   * Reads an arbitrary object from the input stream when the type
+   * is unknown.
+   */
+  public Object deserializeObject(byte[] src) {
+    Input input = new Input(src);
+    return getKryo().readClassAndObject(input);
+  }
+  
   private Kryo getKryo() {
     Kryo kryo = new Kryo();
     //kryo.setRegistrationRequired(true);

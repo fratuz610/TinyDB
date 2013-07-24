@@ -54,7 +54,7 @@ public class TinyDBTest {
   
   public static void main(String[] args) throws IOException {
     
-    FileInputStream configFile = new FileInputStream("logging.properties");
+    FileInputStream configFile = new FileInputStream("verboseLogging.properties");
     LogManager.getLogManager().readConfiguration(configFile);
     
     TinyDBDataService dataService = new TinyDBDataService(new TinyDBOptions()
