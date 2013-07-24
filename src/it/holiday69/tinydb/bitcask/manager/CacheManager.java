@@ -18,12 +18,12 @@ package it.holiday69.tinydb.bitcask.manager;
 
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import it.holiday69.tinydb.bitcask.vo.Key;
+import it.holiday69.tinydb.log.DBLog;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Logger;
 
 /**
  *
@@ -31,7 +31,7 @@ import java.util.logging.Logger;
  */
 public class CacheManager {
   
-  private final Logger _log = Logger.getLogger(CacheManager.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(CacheManager.class.getSimpleName());
   
   private final BitcaskOptions _options;
   

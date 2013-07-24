@@ -30,7 +30,6 @@ import java.nio.channels.FileChannel;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
 import org.iq80.snappy.Snappy;
 
 /**
@@ -39,7 +38,6 @@ import org.iq80.snappy.Snappy;
  */
 public class HintFileWriter {
   
-  private final Logger _log = Logger.getLogger(HintFileWriter.class.getSimpleName());
   private final SnappyHelper _snappyHelper = new SnappyHelper();
   
   private File _hintFile;

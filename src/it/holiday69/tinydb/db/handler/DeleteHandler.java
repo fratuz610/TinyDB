@@ -22,6 +22,7 @@ import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
 import it.holiday69.tinydb.db.vo.ClassInfo;
+import it.holiday69.tinydb.log.DBLog;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 
@@ -31,7 +32,7 @@ import java.util.logging.Logger;
  */
 public class DeleteHandler {
   
-  private final Logger log = Logger.getLogger(DeleteHandler.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(AsyncPutHandler.class.getSimpleName());
   
   private final BitcaskManager _bitcaskManager;
   private final TinyDBMapper _dbMapper;
@@ -60,7 +61,7 @@ public class DeleteHandler {
     // updates all the index trees
     for(String indexedFieldName : classInfo.indexedFieldNameList) {
       
-      log.info("Deleting indexedField: " + indexedFieldName);
+      _log.info("Deleting indexedField: " + indexedFieldName);
       _bitcaskManager.getIndexDB(classOfT, indexedFieldName).clear();
     }
   }

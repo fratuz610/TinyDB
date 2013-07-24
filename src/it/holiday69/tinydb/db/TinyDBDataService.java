@@ -18,20 +18,21 @@ package it.holiday69.tinydb.db;
 
 import it.holiday69.dataservice.DataService;
 import it.holiday69.dataservice.query.Query;
-import it.holiday69.tinydb.bitcask.manager.KryoManager;
+import it.holiday69.tinydb.bitcask.manager.SerializationManager;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.handler.AsyncPutHandler;
 import it.holiday69.tinydb.db.handler.DeleteHandler;
 import it.holiday69.tinydb.db.handler.GetHandler;
 import it.holiday69.tinydb.db.handler.PutHandler;
 import it.holiday69.tinydb.db.handler.SyncPutHandler;
+import it.holiday69.tinydb.log.DBLog;
+import java.io.File;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
 
 /**
  * An implementation of the DataService interface based on the {@link Bitcask} datastore
@@ -39,8 +40,6 @@ import java.util.logging.Logger;
  */
 public class TinyDBDataService extends DataService {
   
-  private static final Logger _log = Logger.getLogger(TinyDBDataService.class.getSimpleName());
-
   private final TinyDBMapper _dbMapper;
   private final BitcaskManager _bitcaskManager;
   private final PutHandler _putHandler;
@@ -50,6 +49,8 @@ public class TinyDBDataService extends DataService {
   private final ExecutorService _executor;
   
   public TinyDBDataService(TinyDBOptions tinyDBOptions, ScheduledExecutorService executor) {
+    
+    DBLog.start(new File(tinyDBOptions.bitcaskOptions.dbFolder));
     
     _executor = executor;
     _bitcaskManager = new BitcaskManager(tinyDBOptions.bitcaskOptions, executor);
@@ -77,7 +78,7 @@ public class TinyDBDataService extends DataService {
   }
   
   public void mapClass(Class<?> clazz, int index) {
-    KryoManager.mapClass(clazz, index);
+    SerializationManager.mapClass(clazz, index);
   }
   
   @Override
@@ -171,6 +172,7 @@ public class TinyDBDataService extends DataService {
     }
     _bitcaskManager.shutdown(compact);
     _putHandler.shutdown();
+    DBLog.shutdown();
   }
   
   private static class DBThreadFactory implements ThreadFactory {
