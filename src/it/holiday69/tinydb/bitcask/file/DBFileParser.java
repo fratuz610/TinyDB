@@ -16,9 +16,11 @@
 
 package it.holiday69.tinydb.bitcask.file;
 
+import it.holiday69.tinydb.bitcask.Bitcask;
+import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.bitcask.vo.KeyRecord;
-import it.holiday69.tinydb.bitcask.file.utils.KryoUtils;
+import it.holiday69.tinydb.log.DBLog;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.File;
 import java.io.FileInputStream;
@@ -26,7 +28,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
 
 /**
  *
@@ -34,7 +35,7 @@ import java.util.logging.Logger;
  */
 public class DBFileParser {
   
-  private final Logger _log = Logger.getLogger(DBFileParser.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(DBFileParser.class.getSimpleName());
   
   private File _dbFile;
   private int _recordsParsed = 0;

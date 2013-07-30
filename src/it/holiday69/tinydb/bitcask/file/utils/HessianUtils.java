@@ -21,7 +21,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Date;
-import java.util.logging.Logger;
+
 
 /**
  *
@@ -29,7 +29,6 @@ import java.util.logging.Logger;
  */
 public class HessianUtils {
   
-  private final static Logger _log = Logger.getLogger(HessianUtils.class.getSimpleName());
 
   private static final int BC_BINARY = 'B'; // final chunk
   private static final int BC_BINARY_CHUNK = 'A'; // non-final chunk

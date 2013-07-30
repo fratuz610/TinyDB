@@ -26,8 +26,8 @@ import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
 import it.holiday69.tinydb.db.vo.ClassInfo;
+import it.holiday69.tinydb.log.DBLog;
 import java.util.*;
-import java.util.logging.Logger;
 
 /**
  *
@@ -35,7 +35,7 @@ import java.util.logging.Logger;
  */
 public class GetHandler {
   
-  private final Logger _log = Logger.getLogger(GetHandler.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(GetHandler.class.getSimpleName());
   
   private final BitcaskManager _bitcaskManager;
   private final TinyDBMapper _dbMapper;
@@ -295,7 +295,7 @@ public class GetHandler {
     // we check if the order is on the primary key
     if(classInfo.idFieldName.equals(orderFilter.getFieldName())) {
       
-      _log.finer("Imposing order by primary key: " + classInfo.idFieldName);
+      _log.fine("Imposing order by primary key: " + classInfo.idFieldName);
       
       // key ordering
       orderedKeyList = filteredKeyList;
@@ -307,11 +307,11 @@ public class GetHandler {
         throw new RuntimeException("The field: '" + orderFilter.getFieldName() + "' is not indexed and cannot be used in a query for entity: '" + classOfT.getSimpleName() 
                 + "'. Indexed fields are: " + Arrays.deepToString(classInfo.indexedFieldNameList.toArray(new String[0])));
 
-      _log.finer("Imposing order by field: " + orderFilter.getFieldName());
+      _log.fine("Imposing order by field: " + orderFilter.getFieldName());
       
       Bitcask indexTreeMap = _bitcaskManager.getIndexDB(classOfT, orderFilter.getFieldName());
 
-      _log.finer("The index has cardinality: " + indexTreeMap.size());
+      _log.fine("The index has cardinality: " + indexTreeMap.size());
       
       // reorganize as array list for fast lookups
       orderedKeyList = new ArrayList<Key>(indexTreeMap.size());
@@ -336,7 +336,6 @@ public class GetHandler {
       
       _log.fine("Applying order time: " + (end-start) + " millisecs");
       
-      _log.finer("After imposing order on "+orderFilter.getFieldName()+" extractKeyList has " + orderedKeyList.size() + " elements");
     }
     
     //Collections.sort(orderedKeyList);

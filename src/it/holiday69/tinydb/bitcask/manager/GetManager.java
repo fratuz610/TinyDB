@@ -18,9 +18,9 @@ package it.holiday69.tinydb.bitcask.manager;
 
 import it.holiday69.tinydb.bitcask.vo.KeyRecord;
 import it.holiday69.tinydb.bitcask.manager.FileLockManager;
+import it.holiday69.tinydb.log.DBLog;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.io.FileInputStream;
-import java.util.logging.Logger;
 import org.iq80.snappy.Snappy;
 
 /**
@@ -29,7 +29,7 @@ import org.iq80.snappy.Snappy;
  */
 public class GetManager {
   
-  private final Logger _log = Logger.getLogger(GetManager.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(GetManager.class.getSimpleName());
   
   private final FileLockManager _fileLockManager;
   

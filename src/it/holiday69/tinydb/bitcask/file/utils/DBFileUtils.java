@@ -16,7 +16,7 @@
 
 package it.holiday69.tinydb.bitcask.file.utils;
 
-import it.holiday69.tinydb.db.utils.HashUtils;
+import it.holiday69.tinydb.utils.HashUtils;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.Arrays;
@@ -32,8 +32,6 @@ import javax.xml.bind.DatatypeConverter;
  */
 public class DBFileUtils {
   
-  private final static Logger _log = Logger.getLogger(DBFileUtils.class.getSimpleName());
-
   public static File getDBFile(File dbFolder, String dbName, int index) {
     return new File(dbFolder, getTranslatedDBName(dbName) + ".db." + index);
   }

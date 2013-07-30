@@ -18,6 +18,7 @@ package it.holiday69.tinydb.db.handler;
 
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
+import it.holiday69.tinydb.log.DBLog;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -31,7 +32,7 @@ import java.util.logging.Logger;
  */
 public class AsyncPutHandler implements PutHandler<Object> {
   
-  private final Logger _log = Logger.getLogger(AsyncPutHandler.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(AsyncPutHandler.class.getSimpleName());
   
   private final ExecutorService _putExecutor;
   private final LinkedBlockingQueue<Object> _workingQueue = new LinkedBlockingQueue<Object>();

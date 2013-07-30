@@ -24,12 +24,12 @@ import it.holiday69.tinydb.bitcask.manager.AppendManager;
 import it.holiday69.tinydb.bitcask.manager.CacheManager;
 import it.holiday69.tinydb.bitcask.manager.FileLockManager;
 import it.holiday69.tinydb.bitcask.manager.GetManager;
-import it.holiday69.tinydb.bitcask.manager.KryoManager;
+import it.holiday69.tinydb.bitcask.manager.SerializationManager;
 import it.holiday69.tinydb.bitcask.vo.AppendInfo;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.bitcask.vo.KeyRecord;
+import it.holiday69.tinydb.log.DBLog;
 import it.holiday69.tinydb.utils.ExceptionUtils;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.util.Collection;
 import java.util.Comparator;
@@ -44,11 +44,9 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Logger;
 
 /**
  *
@@ -56,7 +54,7 @@ import java.util.logging.Logger;
  */
 public class Bitcask implements SortedMap<Key, Object> {
   
-  private final Logger _log = Logger.getLogger(Bitcask.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(Bitcask.class.getSimpleName());
   
   private AtomicBoolean _isShutdown = new AtomicBoolean(false);
   
@@ -70,7 +68,7 @@ public class Bitcask implements SortedMap<Key, Object> {
   private final AppendManager _appendManager;
   private final GetManager _getManager;
   private final CacheManager _cacheManager;
-  private final KryoManager _kryoManager;
+  private final SerializationManager _kryoManager;
   
   private final ReadWriteLock _keyMapLock = new ReentrantReadWriteLock();
   private final FileLockManager _fileLockManager = new FileLockManager();
@@ -95,7 +93,7 @@ public class Bitcask implements SortedMap<Key, Object> {
     _appendManager = new AppendManager(_dbName, _options, _fileLockManager);
     _getManager = new GetManager(_fileLockManager);
     _cacheManager = new CacheManager(_options);
-    _kryoManager = new KryoManager();
+    _kryoManager = new SerializationManager();
     
     if(_options.autoCompact ) {
       
@@ -347,7 +345,7 @@ public class Bitcask implements SortedMap<Key, Object> {
     try {
       return _kryoManager.deserializeObject(rawRecord);
     } catch(KryoException ex) {
-      //_log.info("Unable to deserialize value from key: " + key + " marking the object as deleted");
+      _log.warning("Unable to deserialize value from key: " + key + " bitcask name: "+_dbName+" returning null: " + ExceptionUtils.getFullExceptionInfo(ex));
       return null;
     }
   }
@@ -368,7 +366,7 @@ public class Bitcask implements SortedMap<Key, Object> {
       if(keyRecord == null)
         return null;
 
-      _log.finer("internalGetRecord: Trying and retrieving keyRecord: " + keyRecord);
+      _log.fine("internalGetRecord: Trying and retrieving keyRecord: " + keyRecord);
 
       byte[] retValue = _getManager.retrieveRecord(keyRecord);
       

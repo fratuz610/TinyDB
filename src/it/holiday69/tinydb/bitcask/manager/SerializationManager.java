@@ -20,6 +20,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import it.holiday69.tinydb.bitcask.vo.Key;
+import it.holiday69.tinydb.log.DBLog;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -31,9 +32,9 @@ import java.util.logging.Logger;
  *
  * @author Stefano
  */
-public class KryoManager {
+public class SerializationManager {
   
-  private final Logger _log = Logger.getLogger(KryoManager.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(SerializationManager.class.getSimpleName());
   
   private final static Map<Class, Integer> _kryoClassMap = new HashMap<Class, Integer>();
   
@@ -53,7 +54,7 @@ public class KryoManager {
    * is unknown.
    */
   public Object deserializeObject(InputStream in) {
-    Input input = new Input(in, 1);
+    Input input = new Input(in);
     return getKryo().readClassAndObject(input);
   }
   
@@ -72,7 +73,7 @@ public class KryoManager {
     
     // registers the some internal classes minimizing overlap
     kryo.register(Key.class, 126);
-    kryo.register(TreeSet.class, 127);
+    //kryo.register(TreeSet.class, 127);
     
     synchronized(_kryoClassMap) {
       for(Class clazz : _kryoClassMap.keySet()) {

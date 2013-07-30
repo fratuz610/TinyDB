@@ -21,6 +21,7 @@ import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.db.BitcaskManager;
 import it.holiday69.tinydb.db.TinyDBMapper;
 import it.holiday69.tinydb.db.vo.ClassInfo;
+import it.holiday69.tinydb.log.DBLog;
 import it.holiday69.tinydb.utils.ExceptionUtils;
 import java.util.TreeSet;
 import java.util.logging.Logger;
@@ -31,7 +32,7 @@ import java.util.logging.Logger;
  */
 public class SyncPutHandler implements PutHandler<Object> {
   
-  private final Logger _log = Logger.getLogger(SyncPutHandler.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(SyncPutHandler.class.getSimpleName());
   
   private final BitcaskManager _bitcaskManager;
   private final TinyDBMapper _dbMapper;
@@ -99,6 +100,11 @@ public class SyncPutHandler implements PutHandler<Object> {
           indexTreeMap.put(indexKey, new TreeSet<Key>());
 
         TreeSet<Key> linkedKeySet = (TreeSet<Key>) indexTreeMap.get(indexKey);
+        
+        if(linkedKeySet == null) {
+          _log.fine("Unable to retreive a valid index for value '" + fieldValue + "' and entity: '" + newObj.getClass().getSimpleName() + "'");
+          continue;
+        }
         
         _log.fine("Analyzing indexedField: '" + indexedFieldName + "' => '"+fieldValue+"'. Cardinality so far: " + linkedKeySet.size());
 

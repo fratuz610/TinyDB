@@ -16,18 +16,20 @@
 
 package it.holiday69.tinydb.bitcask.manager;
 
+import it.holiday69.tinydb.bitcask.Bitcask;
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
 import it.holiday69.tinydb.bitcask.vo.AppendInfo;
 import it.holiday69.tinydb.bitcask.vo.Key;
 import it.holiday69.tinydb.bitcask.vo.Record;
 import it.holiday69.tinydb.bitcask.file.utils.DBFileUtils;
 import it.holiday69.tinydb.bitcask.manager.FileLockManager;
+import it.holiday69.tinydb.log.DBLog;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Logger;
+
 
 /**
  *
@@ -35,7 +37,7 @@ import java.util.logging.Logger;
  */
 public class AppendManager {
   
-  private final Logger _log = Logger.getLogger(AppendManager.class.getSimpleName());
+  private final DBLog _log = DBLog.getInstance(AppendManager.class.getSimpleName());
   
   private File _dbFolder;
   private String _dbName;
@@ -123,6 +125,7 @@ public class AppendManager {
       return appendInfo;
     
     } catch(Throwable th) {
+      _log.severe("Unable to append record to file: " + _currentFile + " : " + th.getMessage());
       throw new RuntimeException("Unable to append record to file: " + _currentFile + " : ", th);
     }
   }

@@ -14,18 +14,19 @@
     limitations under the License.
 */
 
-package it.holiday69.tinydb.db.utils;
+package it.holiday69.tinydb.utils;
 
+import it.holiday69.tinydb.db.handler.SyncPutHandler;
+import it.holiday69.tinydb.log.DBLog;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.logging.Logger;
 
 /**
  *
  * @author Stefano Fratini <stefano.fratini@yeahpoint.com>
  */
 public class HashUtils {
-
+  
   // SHA256
 
   public static byte[] SHA256(String source) {
@@ -33,7 +34,7 @@ public class HashUtils {
       MessageDigest sha = MessageDigest.getInstance("SHA-256");
       return sha.digest(source.getBytes());
     } catch (NoSuchAlgorithmException ex) {
-      Logger.getLogger(HashUtils.class.getSimpleName()).severe("Unable to use SHA256 Encryption, returning null: " + ex.getMessage());
+      DBLog.getInstance(SyncPutHandler.class.getSimpleName()).severe("Unable to use SHA256 Encryption, returning null: " + ex.getMessage());
       return null;
     }
   }
@@ -43,7 +44,7 @@ public class HashUtils {
       MessageDigest sha = MessageDigest.getInstance("SHA-1");
       return sha.digest(source.getBytes());
     } catch (NoSuchAlgorithmException ex) {
-      Logger.getLogger(HashUtils.class.getSimpleName()).severe("Unable to use SHA1 Encryption, returning null: " + ex.getMessage());
+      DBLog.getInstance(SyncPutHandler.class.getSimpleName()).severe("Unable to use SHA1 Encryption, returning null: " + ex.getMessage());
       return null;
     }
   }
