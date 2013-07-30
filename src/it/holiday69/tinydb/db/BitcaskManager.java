@@ -18,11 +18,9 @@ package it.holiday69.tinydb.db;
 
 import it.holiday69.tinydb.bitcask.Bitcask;
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
-import it.holiday69.tinydb.bitcask.manager.SerializationManager;
 import it.holiday69.tinydb.log.DBLog;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.logging.Logger;
 
 /**
  *

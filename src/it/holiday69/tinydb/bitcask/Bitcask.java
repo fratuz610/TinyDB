@@ -339,13 +339,13 @@ public class Bitcask implements SortedMap<Key, Object> {
     } else
       throw new IllegalArgumentException("Supported key types are only String/Long/Double: " + key.getClass() + " provided");
 
-    if(rawRecord == null) 
+    if(rawRecord == null || rawRecord.length == 0) 
       return null;
 
     try {
       return _kryoManager.deserializeObject(rawRecord);
-    } catch(KryoException ex) {
-      _log.warning("Unable to deserialize value from key: " + key + " bitcask name: "+_dbName+" returning null: " + ExceptionUtils.getFullExceptionInfo(ex));
+    } catch(Throwable th) {
+      _log.warning("Unable to deserialize value from rawRecord: " + rawRecord.length + " bytes and key: "+key+" bitcask name: "+_dbName+" returning null: " + ExceptionUtils.getFullExceptionInfo(th));
       return null;
     }
   }
@@ -370,8 +370,13 @@ public class Bitcask implements SortedMap<Key, Object> {
 
       byte[] retValue = _getManager.retrieveRecord(keyRecord);
       
+      if(retValue != null && retValue.length == 0)
+        retValue = null;
+      
       // updates the cache
-      if(retValue != null)
+      if(retValue == null)
+        _cacheManager.delete(key);
+      else
         _cacheManager.put(key, retValue);
       
       return retValue;

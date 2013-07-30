@@ -63,7 +63,15 @@ public class SerializationManager {
    * is unknown.
    */
   public Object deserializeObject(byte[] src) {
-    Input input = new Input(src);
+    
+    if(src == null)
+      throw new NullPointerException("null src byte array passed");
+    
+    if(src.length == 0)
+      throw new RuntimeException("Zero length src byte array passed");
+    
+    Input input = new Input();
+    input.setBuffer(src);
     return getKryo().readClassAndObject(input);
   }
   
@@ -73,7 +81,7 @@ public class SerializationManager {
     
     // registers the some internal classes minimizing overlap
     kryo.register(Key.class, 126);
-    //kryo.register(TreeSet.class, 127);
+    kryo.register(TreeSet.class, 127);
     
     synchronized(_kryoClassMap) {
       for(Class clazz : _kryoClassMap.keySet()) {
