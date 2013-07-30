@@ -50,7 +50,7 @@ public class TinyDBDataService extends DataService {
   
   public TinyDBDataService(TinyDBOptions tinyDBOptions, ScheduledExecutorService executor) {
     
-    DBLog.start(new File(tinyDBOptions.bitcaskOptions.dbFolder));
+    DBLog.start(new File(tinyDBOptions.bitcaskOptions.dbFolder), tinyDBOptions.logLevel);
     
     _executor = executor;
     _bitcaskManager = new BitcaskManager(tinyDBOptions.bitcaskOptions, executor);

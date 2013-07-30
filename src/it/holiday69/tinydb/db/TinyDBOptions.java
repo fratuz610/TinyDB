@@ -17,6 +17,7 @@
 package it.holiday69.tinydb.db;
 
 import it.holiday69.tinydb.bitcask.BitcaskOptions;
+import it.holiday69.tinydb.log.DBLog;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -56,8 +57,10 @@ public class TinyDBOptions {
   // tinydb related options
   public boolean asyncUpdates = true;
   public int executorPoolSize = 5;
+  public DBLog.LogLevel logLevel = DBLog.LogLevel.WARNING;
   
   public TinyDBOptions withAsyncUpdates(boolean asyncUpdates) { this.asyncUpdates = asyncUpdates; return this; }
   public TinyDBOptions withExecutorPoolSize(int executorPoolSize) { this.executorPoolSize = executorPoolSize; return this; }
+  public TinyDBOptions withLogLevel(DBLog.LogLevel logLevel) { this.logLevel = logLevel; return this; }
   
 }

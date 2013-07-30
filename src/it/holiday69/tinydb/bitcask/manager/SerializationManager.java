@@ -54,7 +54,7 @@ public class SerializationManager {
    * is unknown.
    */
   public Object deserializeObject(InputStream in) {
-    Input input = new Input(in, 1);
+    Input input = new Input(in);
     return getKryo().readClassAndObject(input);
   }
   
@@ -73,7 +73,7 @@ public class SerializationManager {
     
     // registers the some internal classes minimizing overlap
     kryo.register(Key.class, 126);
-    kryo.register(TreeSet.class, 127);
+    //kryo.register(TreeSet.class, 127);
     
     synchronized(_kryoClassMap) {
       for(Class clazz : _kryoClassMap.keySet()) {

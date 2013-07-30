@@ -125,6 +125,7 @@ public class AppendManager {
       return appendInfo;
     
     } catch(Throwable th) {
+      _log.severe("Unable to append record to file: " + _currentFile + " : " + th.getMessage());
       throw new RuntimeException("Unable to append record to file: " + _currentFile + " : ", th);
     }
   }
